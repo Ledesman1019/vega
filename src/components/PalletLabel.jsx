@@ -15,19 +15,19 @@ export default function PalletLabel({ codigo, fecha, cantidad, orientation }) {
       {/* Cuerpo: 3 filas tipo tabla */}
       <div className="flex min-h-0 flex-1 flex-col border-t-[3px] border-black">
         <LabelRow caption="Código" empty={!codigo}>
-          <span className="text-[clamp(32px,11cqw,150px)]">
+          <span className="text-[clamp(36px,12cqw,160px)]">
             {codigo || '—'}
           </span>
         </LabelRow>
 
         <LabelRow caption="Vencimiento" empty={!fecha}>
-          <span className="text-[clamp(32px,11cqw,150px)]">
+          <span className="text-[clamp(36px,12cqw,160px)]">
             {fechaFormateada || '—'}
           </span>
         </LabelRow>
 
         <LabelRow caption="Cantidad de cajas" empty={!cantidad} last>
-          <span className="text-[clamp(32px,11cqw,150px)]">
+          <span className="text-[clamp(36px,12cqw,160px)]">
             {cantidad || '0'}
           </span>
         </LabelRow>
@@ -51,23 +51,23 @@ function LabelRow({ caption, empty, last, children }) {
         last ? '' : 'border-b-[3px] border-black',
       ].join(' ')}
     >
-      {/* Caption izquierda — 30% (más angosto para dar espacio a los números) */}
-      <div className="flex w-[30%] shrink-0 items-center justify-center overflow-hidden border-r-[3px] border-black bg-neutral-100 px-1 text-center font-extrabold uppercase leading-[1.05] tracking-tight">
+      {/* Caption izquierda — 22% */}
+      <div className="flex w-[22%] shrink-0 items-center justify-center overflow-hidden border-r-[3px] border-black bg-neutral-100 px-1 text-center font-extrabold uppercase leading-[1.1] tracking-tight">
         {esMultiPalabra ? (
-          <span className="text-[clamp(13px,3.4cqw,40px)] [text-wrap:balance]">
+          <span className="text-[clamp(10px,2.4cqw,28px)] [text-wrap:balance]">
             {caption}
           </span>
         ) : (
-          <span className="whitespace-nowrap text-[clamp(12px,3.8cqw,42px)]">
+          <span className="whitespace-nowrap text-[clamp(9px,2.6cqw,30px)]">
             {caption}
           </span>
         )}
       </div>
 
-      {/* Valor derecha */}
+      {/* Valor derecha — 78% con padding generoso */}
       <div
         className={[
-          'flex min-w-0 flex-1 items-center justify-center overflow-hidden px-3 font-black leading-none',
+          'flex min-w-0 flex-1 items-center justify-center overflow-hidden px-4 font-black leading-none',
           empty ? 'text-neutral-300' : '',
         ].join(' ')}
       >
