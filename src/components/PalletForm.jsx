@@ -3,6 +3,21 @@ import { IconBarcode, IconCalendar, IconBox, IconTagArrow } from './Icons.jsx'
 export default function PalletForm({ data, onChange, onGenerate, errors }) {
   const set = (field) => (e) => onChange({ ...data, [field]: e.target.value })
 
+  // Fecha mínima: hoy en zona local (evita el desfase UTC de toISOString)
+  const hoyISO = (() => {
+    const d = new Date()
+    const offset = d.getTimezoneOffset() * 60000
+    return new Date(d.getTime() - offset).toISOString().slice(0, 10)
+  })()
+
+  // Código: solo dígitos, máximo 6
+  const handleCodigo = (e) => {
+    const soloDigitos = e.target.value.replace(/\D/g, '').slice(0, 6)
+    onChange({ ...data, codigo: soloDigitos })
+  }
+
+  const codigoCompleto = data.codigo.length === 6
+
   return (
     <div className="w-full max-w-xl rounded-3xl border border-neutral-200 bg-white p-7 shadow-xl shadow-neutral-900/5 sm:p-10">
       <div className="mb-7 flex items-center gap-4 border-b border-neutral-100 pb-5">
@@ -20,14 +35,25 @@ export default function PalletForm({ data, onChange, onGenerate, errors }) {
         label="Código / Producto"
         icon={IconBarcode}
         error={errors.codigo}
+        hint={!errors.codigo && data.codigo ? `${data.codigo.length} / 6 dígitos` : '6 dígitos numéricos'}
+        hintOk={codigoCompleto}
       >
         <input
           id="codigo"
           type="text"
-          placeholder="Ej. 100234 - Leche UHT"
+          inputMode="numeric"
+          pattern="\d{6}"
+          maxLength={6}
+          autoComplete="off"
+          placeholder="Ej. 255663"
           value={data.codigo}
-          onChange={set('codigo')}
-          className={inputClass(errors.codigo)}
+          onChange={handleCodigo}
+          className={[
+            inputClass(errors.codigo),
+            codigoCompleto && !errors.codigo
+              ? 'border-emerald-400 ring-2 ring-emerald-100'
+              : '',
+          ].join(' ')}
         />
       </Field>
 
@@ -40,6 +66,7 @@ export default function PalletForm({ data, onChange, onGenerate, errors }) {
         <input
           id="fecha"
           type="date"
+          min={hoyISO}
           value={data.fecha}
           onChange={set('fecha')}
           className={inputClass(errors.fecha)}
@@ -55,7 +82,8 @@ export default function PalletForm({ data, onChange, onGenerate, errors }) {
         <input
           id="cantidad"
           type="number"
-          min="0"
+          min="1"
+          inputMode="numeric"
           placeholder="Ej. 48"
           value={data.cantidad}
           onChange={set('cantidad')}
@@ -74,14 +102,29 @@ export default function PalletForm({ data, onChange, onGenerate, errors }) {
   )
 }
 
-function Field({ id, label, icon: Icon, error, children }) {
+function Field({ id, label, icon: Icon, error, hint, hintOk, children }) {
   return (
     <div className="mb-5">
-      <label htmlFor={id} className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-800">
-        <Icon className="h-4 w-4 text-neutral-400" />
-        {label}
-      </label>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <label htmlFor={id} className="flex items-center gap-2 text-sm font-semibold text-neutral-800">
+          <Icon className="h-4 w-4 text-neutral-400" />
+          {label}
+        </label>
+
+        {hint && !error && (
+          <span
+            className={[
+              'text-[11px] font-semibold tabular-nums',
+              hintOk ? 'text-emerald-600' : 'text-neutral-400',
+            ].join(' ')}
+          >
+            {hint}
+          </span>
+        )}
+      </div>
+
       {children}
+
       {error && <p className="mt-1.5 text-xs font-medium text-amber-700">{error}</p>}
     </div>
   )

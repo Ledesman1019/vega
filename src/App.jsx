@@ -61,9 +61,32 @@ export default function App() {
 
   const validate = () => {
     const next = {}
-    if (!data.codigo.trim()) next.codigo = 'Ingresa el código o producto.'
-    if (!data.fecha) next.fecha = 'Selecciona la fecha de vencimiento.'
-    if (!data.cantidad || Number(data.cantidad) <= 0) next.cantidad = 'Ingresa una cantidad válida.'
+
+    // Código: exactamente 6 dígitos
+    const codigoLimpio = data.codigo.trim()
+    if (!codigoLimpio) {
+      next.codigo = 'Ingresa el código del producto.'
+    } else if (!/^\d{6}$/.test(codigoLimpio)) {
+      next.codigo = 'El código debe tener exactamente 6 dígitos.'
+    }
+
+    // Fecha: hoy o futuro
+    if (!data.fecha) {
+      next.fecha = 'Selecciona la fecha de vencimiento.'
+    } else {
+      const hoy = new Date()
+      hoy.setHours(0, 0, 0, 0)
+      const seleccionada = new Date(`${data.fecha}T00:00:00`)
+      if (seleccionada < hoy) {
+        next.fecha = 'La fecha no puede ser anterior a hoy.'
+      }
+    }
+
+    // Cantidad: número > 0
+    if (!data.cantidad || Number(data.cantidad) <= 0) {
+      next.cantidad = 'Ingresa una cantidad válida.'
+    }
+
     setErrors(next)
     return Object.keys(next).length === 0
   }
