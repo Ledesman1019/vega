@@ -3,6 +3,7 @@ export default function PalletLabel({ codigo, fecha, cantidad, orientation }) {
 
   return (
     <div className={`label-sheet orientation-${orientation} flex flex-col bg-white font-sans text-black`}>
+      {/* Header compacto: solo el logo */}
       <div className="flex shrink-0 items-center justify-end px-[3%] py-[1%]">
         <img
           src="/logo-vega.png"
@@ -11,26 +12,28 @@ export default function PalletLabel({ codigo, fecha, cantidad, orientation }) {
         />
       </div>
 
+      {/* Cuerpo: 3 filas tipo tabla */}
       <div className="flex min-h-0 flex-1 flex-col border-t-[3px] border-black">
         <LabelRow caption="Código" empty={!codigo}>
-          <span className="text-[clamp(28px,11cqw,110px)]">
+          <span className="text-[clamp(32px,11cqw,150px)]">
             {codigo || '—'}
           </span>
         </LabelRow>
 
         <LabelRow caption="Vencimiento" empty={!fecha}>
-          <span className="text-[clamp(28px,11cqw,110px)]">
+          <span className="text-[clamp(32px,11cqw,150px)]">
             {fechaFormateada || '—'}
           </span>
         </LabelRow>
 
         <LabelRow caption="Cantidad de cajas" empty={!cantidad} last>
-          <span className="text-[clamp(28px,11cqw,110px)]">
+          <span className="text-[clamp(32px,11cqw,150px)]">
             {cantidad || '0'}
           </span>
         </LabelRow>
       </div>
 
+      {/* Footer */}
       <div className="shrink-0 border-t-[3px] border-black px-[4%] py-[1%] text-center text-[clamp(10px,1.4cqw,16px)] font-bold uppercase tracking-wide">
         Identificación de pallet
       </div>
@@ -39,6 +42,8 @@ export default function PalletLabel({ codigo, fecha, cantidad, orientation }) {
 }
 
 function LabelRow({ caption, empty, last, children }) {
+  const esMultiPalabra = caption.includes(' ')
+
   return (
     <div
       className={[
@@ -46,9 +51,17 @@ function LabelRow({ caption, empty, last, children }) {
         last ? '' : 'border-b-[3px] border-black',
       ].join(' ')}
     >
-      {/* Caption izquierda — más angosto */}
-      <div className="flex w-[24%] shrink-0 items-center justify-center overflow-hidden border-r-[3px] border-black bg-neutral-100 px-1.5 text-center text-[clamp(14px,4.2cqw,44px)] font-extrabold uppercase leading-[1.05] tracking-tight [overflow-wrap:anywhere]">
-        {caption}
+      {/* Caption izquierda — 30% (más angosto para dar espacio a los números) */}
+      <div className="flex w-[30%] shrink-0 items-center justify-center overflow-hidden border-r-[3px] border-black bg-neutral-100 px-1 text-center font-extrabold uppercase leading-[1.05] tracking-tight">
+        {esMultiPalabra ? (
+          <span className="text-[clamp(13px,3.4cqw,40px)] [text-wrap:balance]">
+            {caption}
+          </span>
+        ) : (
+          <span className="whitespace-nowrap text-[clamp(12px,3.8cqw,42px)]">
+            {caption}
+          </span>
+        )}
       </div>
 
       {/* Valor derecha */}
