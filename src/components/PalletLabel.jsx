@@ -7,20 +7,21 @@ export default function PalletLabel({
   fecha,
   cantidad,
   orientation,
+  hideLogo = false,
 }) {
   const fechaFormateada = formatFecha(fecha)
   const sheetRef = useRef(null)
 
   // Recalcula tamaños cada vez que cambian los datos, la orientación,
-  // o el tamaño del contenedor (responsive) y también cuando cargan
-  // las fuentes (si no, se mide con la fuente de reemplazo y luego
-  // "EtiquetaBlack" carga y desajusta el tamaño).
+  // el modo sin-logo, o el tamaño del contenedor (responsive) y
+  // también cuando cargan las fuentes (si no, se mide con la fuente
+  // de reemplazo y luego "EtiquetaBlack" carga y desajusta el tamaño).
   useLayoutEffect(() => {
     fitAll(sheetRef.current)
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => fitAll(sheetRef.current))
     }
-  }, [codigo, fecha, cantidad, orientation])
+  }, [codigo, fecha, cantidad, orientation, hideLogo])
 
   useEffect(() => {
     const el = sheetRef.current
@@ -45,14 +46,19 @@ export default function PalletLabel({
   }, [])
 
   return (
-    <div ref={sheetRef} className={`label-sheet orientation-${orientation}`}>
+    <div
+      ref={sheetRef}
+      className={`label-sheet orientation-${orientation} ${hideLogo ? 'no-logo' : ''}`}
+    >
 
-      {/* LOGO PEQUEÑO EN LA ESQUINA */}
-      <img
-        src="/logo-vega.png"
-        alt="VEGA"
-        className="label-logo"
-      />
+      {/* LOGO PEQUEÑO EN LA ESQUINA (se omite en modo "sin logo") */}
+      {!hideLogo && (
+        <img
+          src="/logo-vega.png"
+          alt="VEGA"
+          className="label-logo"
+        />
+      )}
 
       {/* TABLA COMPLETA */}
       <div className="label-body">

@@ -12,6 +12,7 @@ import {
 
 export default function ExportView({ data, orientation, onOrientation, onBack, onPrinted }) {
   const [saving, setSaving] = useState(false)
+  const [hideLogo, setHideLogo] = useState(false)
 
   const handlePrint = () => {
     window.print()
@@ -24,7 +25,7 @@ export default function ExportView({ data, orientation, onOrientation, onBack, o
       // PDF vectorial (texto y líneas reales de jsPDF): nítido a
       // cualquier zoom, sin el traslape de caracteres que producía
       // html2canvas al rasterizar con letter-spacing negativo.
-      const doc = await generateLabelPdf(data, orientation)
+      const doc = await generateLabelPdf(data, orientation, { hideLogo })
       const nombre = data.codigo ? data.codigo.replace(/[^a-z0-9-_]+/gi, '_') : 'sin-codigo'
       doc.save(`rotulo-pallet-${nombre}.pdf`)
       onPrinted?.()
@@ -73,6 +74,19 @@ export default function ExportView({ data, orientation, onOrientation, onBack, o
             />
           </div>
         </div>
+
+        {/* Prueba: exportar sin logo, a toda la hoja */}
+        <div className="flex items-center justify-center gap-2 border-t border-white/15 px-4 py-2 sm:px-6">
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-white/85">
+            <input
+              type="checkbox"
+              checked={hideLogo}
+              onChange={(e) => setHideLogo(e.target.checked)}
+              className="h-3.5 w-3.5 accent-white"
+            />
+            Prueba: sin logo (números al máximo)
+          </label>
+        </div>
       </div>
 
       {/* Vista previa */}
@@ -82,6 +96,7 @@ export default function ExportView({ data, orientation, onOrientation, onBack, o
           fecha={data.fecha}
           cantidad={data.cantidad}
           orientation={orientation}
+          hideLogo={hideLogo}
         />
       </div>
     </div>

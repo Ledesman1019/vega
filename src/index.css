@@ -135,6 +135,12 @@ body {
   box-sizing: border-box;
 }
 
+/* Modo de prueba "sin logo": usa toda la hoja, sin reservar espacio
+   arriba, para maximizar el tamaño de los números. */
+.label-sheet.no-logo .label-body {
+  top: 4mm;
+}
+
 
 /* =========================================================
    FILAS
@@ -357,6 +363,10 @@ body {
     bottom: 4mm !important;
     top: 18mm !important;
     border: 1mm solid #000 !important;
+  }
+
+  .label-sheet.no-logo .label-body {
+    top: 4mm !important;
   }
 
   .label-logo {

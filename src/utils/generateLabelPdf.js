@@ -43,10 +43,10 @@ const LINE_HEIGHT_FACTOR = 0.92 // proporción alto-de-línea/tamaño, igual que
 
 let fontBase64Promise = null
 function getFontBase64() {
-    if (!fontBase64Promise) {
-        fontBase64Promise = fetchAsBase64(FONT_URL)
-    }
-    return fontBase64Promise
+  if (!fontBase64Promise) {
+    fontBase64Promise = fetchAsBase64(FONT_URL)
+  }
+  return fontBase64Promise
 }
 
 // 🔑 Cada vez que se llama a generateLabelPdf() se crea un jsPDF
@@ -59,17 +59,17 @@ function getFontBase64() {
 // en el PDF vertical. Ahora solo se cachea la descarga del .ttf; el
 // addFileToVFS/addFont se repite en cada documento.
 async function loadFont(doc) {
-    const base64 = await getFontBase64()
-    doc.addFileToVFS(`${FONT_NAME}.ttf`, base64)
-    doc.addFont(`${FONT_NAME}.ttf`, FONT_NAME, 'normal')
+  const base64 = await getFontBase64()
+  doc.addFileToVFS(`${FONT_NAME}.ttf`, base64)
+  doc.addFont(`${FONT_NAME}.ttf`, FONT_NAME, 'normal')
 }
 
 let logoPromise = null
 function loadLogo() {
-    if (!logoPromise) {
-        logoPromise = fetchAsDataUrl(LOGO_URL)
-    }
-    return logoPromise
+  if (!logoPromise) {
+    logoPromise = fetchAsDataUrl(LOGO_URL)
+  }
+  return logoPromise
 }
 
 /**
@@ -80,123 +80,127 @@ function loadLogo() {
  * que no hay diferencia entre lo calculado y lo que sale en el PDF.
  */
 function fitFontSize(doc, lines, maxWidthMm, maxHeightMm, { min = 6, max = 400 } = {}) {
-    let lo = min
-    let hi = max
-    let best = min
+  let lo = min
+  let hi = max
+  let best = min
 
-    for (let i = 0; i < 24 && hi - lo > 0.25; i++) {
-        const mid = (lo + hi) / 2
-        doc.setFontSize(mid)
+  for (let i = 0; i < 24 && hi - lo > 0.25; i++) {
+    const mid = (lo + hi) / 2
+    doc.setFontSize(mid)
 
-        const widestLineMm = Math.max(...lines.map((line) => doc.getTextWidth(line)))
-        const lineHeightMm = mid * PT_TO_MM * LINE_HEIGHT_FACTOR
-        const totalHeightMm = lineHeightMm * lines.length
+    const widestLineMm = Math.max(...lines.map((line) => doc.getTextWidth(line)))
+    const lineHeightMm = mid * PT_TO_MM * LINE_HEIGHT_FACTOR
+    const totalHeightMm = lineHeightMm * lines.length
 
-        if (widestLineMm <= maxWidthMm && totalHeightMm <= maxHeightMm) {
-            best = mid
-            lo = mid
-        } else {
-            hi = mid
-        }
+    if (widestLineMm <= maxWidthMm && totalHeightMm <= maxHeightMm) {
+      best = mid
+      lo = mid
+    } else {
+      hi = mid
     }
+  }
 
-    doc.setFontSize(best)
-    return best
+  doc.setFontSize(best)
+  return best
 }
 
 function formatFecha(iso) {
-    if (!iso) return ''
-    const [y, m, d] = iso.split('-')
-    if (!y || !m || !d) return iso
-    return `${d}/${m}/${y}`
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  if (!y || !m || !d) return iso
+  return `${d}/${m}/${y}`
 }
 
-export async function generateLabelPdf({ codigo, fecha, cantidad }, orientation) {
-    const isLandscape = orientation === 'landscape'
+export async function generateLabelPdf({ codigo, fecha, cantidad }, orientation, { hideLogo = false } = {}) {
+  const isLandscape = orientation === 'landscape'
 
-    const doc = new jsPDF({
-        orientation: isLandscape ? 'landscape' : 'portrait',
-        unit: 'mm',
-        format: 'a4',
-    })
+  const doc = new jsPDF({
+    orientation: isLandscape ? 'landscape' : 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  })
 
-    await loadFont(doc)
-    doc.setFont(FONT_NAME, 'normal')
-    doc.setTextColor(0, 0, 0)
-    doc.setDrawColor(0, 0, 0)
+  await loadFont(doc)
+  doc.setFont(FONT_NAME, 'normal')
+  doc.setTextColor(0, 0, 0)
+  doc.setDrawColor(0, 0, 0)
 
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
 
-    const bodyX = MARGIN
-    const bodyY = TOP_OFFSET
-    const bodyWidth = pageWidth - MARGIN * 2
-    const bodyHeight = pageHeight - TOP_OFFSET - MARGIN
+  const bodyX = MARGIN
+  // Modo de prueba "sin logo": usa toda la hoja (margen parejo),
+  // en vez de reservar espacio arriba para el logo.
+  const bodyY = hideLogo ? MARGIN : TOP_OFFSET
+  const bodyWidth = pageWidth - MARGIN * 2
+  const bodyHeight = pageHeight - bodyY - MARGIN
 
-    const captionWidth = bodyWidth * CAPTION_WIDTH_RATIO
-    const valueWidth = bodyWidth - captionWidth
-    const rowHeight = bodyHeight / ROW_COUNT
+  const captionWidth = bodyWidth * CAPTION_WIDTH_RATIO
+  const valueWidth = bodyWidth - captionWidth
+  const rowHeight = bodyHeight / ROW_COUNT
 
-    // Marco exterior de la tabla
-    doc.setLineWidth(OUTER_BORDER_MM)
-    doc.rect(bodyX, bodyY, bodyWidth, bodyHeight)
+  // Marco exterior de la tabla
+  doc.setLineWidth(OUTER_BORDER_MM)
+  doc.rect(bodyX, bodyY, bodyWidth, bodyHeight)
 
-    const rows = [
-        { caption: ['CÓDIGO'], value: codigo || '—' },
-        { caption: ['VENCIMIENTO'], value: formatFecha(fecha) || '—' },
-        { caption: ['CANTIDAD', 'UNIDADES'], value: String(cantidad || '0') },
-    ]
+  const rows = [
+    { caption: ['CÓDIGO'], value: codigo || '—' },
+    { caption: ['VENCIMIENTO'], value: formatFecha(fecha) || '—' },
+    { caption: ['CANTIDAD', 'UNIDADES'], value: String(cantidad || '0') },
+  ]
 
-    doc.setLineWidth(DIVIDER_MM)
+  doc.setLineWidth(DIVIDER_MM)
 
-    rows.forEach((row, i) => {
-        const rowY = bodyY + rowHeight * i
+  rows.forEach((row, i) => {
+    const rowY = bodyY + rowHeight * i
 
-        // Línea divisoria horizontal entre filas (el borde exterior ya
-        // dibuja el contorno completo, esto solo agrega las internas)
-        if (i > 0) {
-            doc.line(bodyX, rowY, bodyX + bodyWidth, rowY)
-        }
-
-        // Línea divisoria vertical entre columnas
-        doc.line(bodyX + captionWidth, rowY, bodyX + captionWidth, rowY + rowHeight)
-
-        // --- Columna izquierda: etiqueta ---
-        const captionBoxW = captionWidth - CAPTION_PADDING_MM * 2
-        const captionBoxH = rowHeight - CAPTION_PADDING_MM * 2
-        const captionSize = fitFontSize(doc, row.caption, captionBoxW, captionBoxH, { max: 200 })
-        const captionLineH = captionSize * PT_TO_MM * LINE_HEIGHT_FACTOR
-        const captionBlockH = captionLineH * row.caption.length
-        const captionBlockTop = rowY + rowHeight / 2 - captionBlockH / 2
-
-        row.caption.forEach((line, li) => {
-            const lineCenterY = captionBlockTop + captionLineH * (li + 0.5)
-            doc.text(line, bodyX + captionWidth / 2, lineCenterY, {
-                align: 'center',
-                baseline: 'middle',
-            })
-        })
-
-        // --- Columna derecha: valor ---
-        const valueBoxW = valueWidth - VALUE_PADDING_X_MM * 2
-        const valueBoxH = rowHeight - VALUE_PADDING_Y_MM * 2
-        fitFontSize(doc, [row.value], valueBoxW, valueBoxH, { max: 400 })
-
-        doc.text(row.value, bodyX + captionWidth + valueWidth / 2, rowY + rowHeight / 2, {
-            align: 'center',
-            baseline: 'middle',
-        })
-    })
-
-    // Logo VEGA arriba a la derecha
-    try {
-        const logoDataUrl = await loadLogo()
-        const logoX = pageWidth - LOGO_RIGHT - LOGO_WIDTH
-        doc.addImage(logoDataUrl, 'PNG', logoX, LOGO_TOP, LOGO_WIDTH, LOGO_HEIGHT)
-    } catch {
-        // Si el logo no carga por algún motivo, seguimos: el rótulo
-        // sigue siendo válido sin él.
+    // Línea divisoria horizontal entre filas (el borde exterior ya
+    // dibuja el contorno completo, esto solo agrega las internas)
+    if (i > 0) {
+      doc.line(bodyX, rowY, bodyX + bodyWidth, rowY)
     }
 
-    return doc
+    // Línea divisoria vertical entre columnas
+    doc.line(bodyX + captionWidth, rowY, bodyX + captionWidth, rowY + rowHeight)
+
+    // --- Columna izquierda: etiqueta ---
+    const captionBoxW = captionWidth - CAPTION_PADDING_MM * 2
+    const captionBoxH = rowHeight - CAPTION_PADDING_MM * 2
+    const captionSize = fitFontSize(doc, row.caption, captionBoxW, captionBoxH, { max: 200 })
+    const captionLineH = captionSize * PT_TO_MM * LINE_HEIGHT_FACTOR
+    const captionBlockH = captionLineH * row.caption.length
+    const captionBlockTop = rowY + rowHeight / 2 - captionBlockH / 2
+
+    row.caption.forEach((line, li) => {
+      const lineCenterY = captionBlockTop + captionLineH * (li + 0.5)
+      doc.text(line, bodyX + captionWidth / 2, lineCenterY, {
+        align: 'center',
+        baseline: 'middle',
+      })
+    })
+
+    // --- Columna derecha: valor ---
+    const valueBoxW = valueWidth - VALUE_PADDING_X_MM * 2
+    const valueBoxH = rowHeight - VALUE_PADDING_Y_MM * 2
+    fitFontSize(doc, [row.value], valueBoxW, valueBoxH, { max: 400 })
+
+    doc.text(row.value, bodyX + captionWidth + valueWidth / 2, rowY + rowHeight / 2, {
+      align: 'center',
+      baseline: 'middle',
+    })
+  })
+
+  // Logo VEGA arriba a la derecha (se omite en modo "sin logo")
+  if (!hideLogo) {
+    try {
+      const logoDataUrl = await loadLogo()
+      const logoX = pageWidth - LOGO_RIGHT - LOGO_WIDTH
+      doc.addImage(logoDataUrl, 'PNG', logoX, LOGO_TOP, LOGO_WIDTH, LOGO_HEIGHT)
+    } catch {
+      // Si el logo no carga por algún motivo, seguimos: el rótulo
+      // sigue siendo válido sin él.
+    }
+  }
+
+  return doc
 }
