@@ -1,85 +1,126 @@
-export default function PalletLabel({ codigo, fecha, cantidad, orientation }) {
+// src/components/PalletLabel.jsx
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import { fitAll } from '../utils/fitText.js'
+
+export default function PalletLabel({
+  codigo,
+  fecha,
+  cantidad,
+  orientation,
+}) {
   const fechaFormateada = formatFecha(fecha)
+  const sheetRef = useRef(null)
+
+  // Recalcula tamaños cada vez que cambian los datos, la orientación,
+  // o el tamaño del contenedor (responsive) y también cuando cargan
+  // las fuentes (si no, se mide con la fuente de reemplazo y luego
+  // "EtiquetaBlack" carga y desajusta el tamaño).
+  useLayoutEffect(() => {
+    fitAll(sheetRef.current)
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => fitAll(sheetRef.current))
+    }
+  }, [codigo, fecha, cantidad, orientation])
+
+  useEffect(() => {
+    const el = sheetRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => fitAll(el))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // El navegador aplica el CSS de impresión (@media print) ANTES de
+  // disparar "beforeprint", así que en ese momento las cajas ya tienen
+  // el tamaño real de la hoja A4 y podemos recalcular para que el
+  // número llene el recuadro sin salirse.
+  useEffect(() => {
+    const refit = () => fitAll(sheetRef.current)
+    window.addEventListener('beforeprint', refit)
+    window.addEventListener('afterprint', refit)
+    return () => {
+      window.removeEventListener('beforeprint', refit)
+      window.removeEventListener('afterprint', refit)
+    }
+  }, [])
 
   return (
-    <div className={`label-sheet orientation-${orientation} flex flex-col bg-white font-sans text-black`}>
-      {/* Header compacto: solo el logo */}
-      <div className="flex shrink-0 items-center justify-end px-[3%] py-[1%]">
-        <img
-          src="/logo-vega.png"
-          alt="VEGA"
-          className="h-[clamp(20px,2.6cqw,34px)] w-auto object-contain"
-        />
-      </div>
+    <div ref={sheetRef} className={`label-sheet orientation-${orientation}`}>
 
-      {/* Cuerpo: 3 filas tipo tabla */}
-      <div className="flex min-h-0 flex-1 flex-col border-t-[3px] border-black">
-        <LabelRow caption="Código" empty={!codigo}>
-          <span className="text-[clamp(36px,12cqw,160px)]">
-            {codigo || '—'}
-          </span>
+      {/* LOGO PEQUEÑO EN LA ESQUINA */}
+      <img
+        src="/logo-vega.png"
+        alt="VEGA"
+        className="label-logo"
+      />
+
+      {/* TABLA COMPLETA */}
+      <div className="label-body">
+
+        {/* FILA 1 - CÓDIGO */}
+        <LabelRow lines={['CÓDIGO']}>
+          {codigo || '—'}
         </LabelRow>
 
-        <LabelRow caption="Vencimiento" empty={!fecha}>
-          <span className="text-[clamp(36px,12cqw,160px)]">
-            {fechaFormateada || '—'}
-          </span>
+        {/* FILA 2 - VENCIMIENTO */}
+        <LabelRow lines={['VENCIMIENTO']}>
+          {fechaFormateada || '—'}
         </LabelRow>
 
-        <LabelRow caption="Cantidad de cajas" empty={!cantidad} last>
-          <span className="text-[clamp(36px,12cqw,160px)]">
-            {cantidad || '0'}
-          </span>
+        {/* FILA 3 - CANTIDAD */}
+        <LabelRow lines={['CANTIDAD', 'UNIDADES']} last>
+          {cantidad || '0'}
         </LabelRow>
-      </div>
 
-      {/* Footer */}
-      <div className="shrink-0 border-t-[3px] border-black px-[4%] py-[1%] text-center text-[clamp(10px,1.4cqw,16px)] font-bold uppercase tracking-wide">
-        Identificación de pallet
       </div>
     </div>
   )
 }
 
-function LabelRow({ caption, empty, last, children }) {
-  const esMultiPalabra = caption.includes(' ')
 
+/* =========================================================
+   FILA DE LA TABLA
+   ========================================================= */
+
+function LabelRow({ lines, last, children }) {
   return (
-    <div
-      className={[
-        'flex min-h-0 flex-1 items-stretch overflow-hidden',
-        last ? '' : 'border-b-[3px] border-black',
-      ].join(' ')}
-    >
-      {/* Caption izquierda — 22% */}
-      <div className="flex w-[22%] shrink-0 items-center justify-center overflow-hidden border-r-[3px] border-black bg-neutral-100 px-1 text-center font-extrabold uppercase leading-[1.1] tracking-tight">
-        {esMultiPalabra ? (
-          <span className="text-[clamp(10px,2.4cqw,28px)] [text-wrap:balance]">
-            {caption}
-          </span>
-        ) : (
-          <span className="whitespace-nowrap text-[clamp(9px,2.6cqw,30px)]">
-            {caption}
-          </span>
-        )}
+    <div className={`label-row ${last ? 'last-row' : ''}`}>
+
+      {/* COLUMNA IZQUIERDA (etiqueta) */}
+      <div className="label-caption">
+        <div className="autofit-box">
+          <div className="autofit-text autofit-caption">
+            {lines.map((linea) => (
+              <span key={linea}>{linea}</span>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Valor derecha — 78% con padding generoso */}
-      <div
-        className={[
-          'flex min-w-0 flex-1 items-center justify-center overflow-hidden px-4 font-black leading-none',
-          empty ? 'text-neutral-300' : '',
-        ].join(' ')}
-      >
-        <span className="w-full text-center whitespace-nowrap">{children}</span>
+      {/* COLUMNA DERECHA (valor) */}
+      <div className="label-value-cell">
+        <div className="autofit-box">
+          <span className="autofit-text autofit-value">{children}</span>
+        </div>
       </div>
+
     </div>
   )
 }
+
+
+/* =========================================================
+   FECHA
+   ========================================================= */
 
 function formatFecha(iso) {
   if (!iso) return ''
+
   const [y, m, d] = iso.split('-')
-  if (!y || !m || !d) return iso
+
+  if (!y || !m || !d) {
+    return iso
+  }
+
   return `${d}/${m}/${y}`
 }

@@ -1,8 +1,7 @@
 // src/components/ExportView.jsx
-import { useRef, useState } from 'react'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
+import { useState } from 'react'
 import PalletLabel from './PalletLabel.jsx'
+import { generateLabelPdf } from '../utils/generateLabelPdf.js'
 import {
   IconArrowLeft,
   IconPortrait,
@@ -12,7 +11,6 @@ import {
 } from './Icons.jsx'
 
 export default function ExportView({ data, orientation, onOrientation, onBack, onPrinted }) {
-  const labelRef = useRef(null)
   const [saving, setSaving] = useState(false)
 
   const handlePrint = () => {
@@ -21,46 +19,14 @@ export default function ExportView({ data, orientation, onOrientation, onBack, o
   }
 
   const handleSavePdf = async () => {
-    if (!labelRef.current) return
     setSaving(true)
     try {
-      const canvas = await html2canvas(labelRef.current, {
-        scale: 3,
-        backgroundColor: '#ffffff',
-        useCORS: true,
-        logging: false,
-        // 🔑 Forzamos la etiqueta a tamaño A4 real durante la captura,
-        // ignorando max-height: 85vh y aspect-ratio del CSS.
-        onclone: (clonedDoc) => {
-          const cloned = clonedDoc.querySelector('.label-sheet')
-          if (!cloned) return
-          const isLandscape = orientation === 'landscape'
-          cloned.style.width = isLandscape ? '297mm' : '210mm'
-          cloned.style.height = isLandscape ? '210mm' : '297mm'
-          cloned.style.maxWidth = 'none'
-          cloned.style.maxHeight = 'none'
-          cloned.style.aspectRatio = 'auto'
-          cloned.style.margin = '0'
-        },
-      })
-
-      const imgData = canvas.toDataURL('image/png')
-
-      const pdf = new jsPDF({
-        orientation: orientation === 'landscape' ? 'landscape' : 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      })
-
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-
-      // 🔑 Estiramos al 100% de la página: como el canvas ya está en
-      // proporción A4 exacta, no se deforma.
-      pdf.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight)
-
+      // PDF vectorial (texto y líneas reales de jsPDF): nítido a
+      // cualquier zoom, sin el traslape de caracteres que producía
+      // html2canvas al rasterizar con letter-spacing negativo.
+      const doc = await generateLabelPdf(data, orientation)
       const nombre = data.codigo ? data.codigo.replace(/[^a-z0-9-_]+/gi, '_') : 'sin-codigo'
-      pdf.save(`rotulo-pallet-${nombre}.pdf`)
+      doc.save(`rotulo-pallet-${nombre}.pdf`)
       onPrinted?.()
     } finally {
       setSaving(false)
@@ -111,14 +77,12 @@ export default function ExportView({ data, orientation, onOrientation, onBack, o
 
       {/* Vista previa */}
       <div className="export-stage flex flex-1 items-start justify-center overflow-auto bg-neutral-200 px-4 py-8 sm:px-8">
-        <div ref={labelRef}>
-          <PalletLabel
-            codigo={data.codigo}
-            fecha={data.fecha}
-            cantidad={data.cantidad}
-            orientation={orientation}
-          />
-        </div>
+        <PalletLabel
+          codigo={data.codigo}
+          fecha={data.fecha}
+          cantidad={data.cantidad}
+          orientation={orientation}
+        />
       </div>
     </div>
   )
