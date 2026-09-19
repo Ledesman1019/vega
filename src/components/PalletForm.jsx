@@ -3,12 +3,15 @@ import {
   IconCalendar,
   IconBox,
   IconTagArrow,
+  IconTrash,
 } from "./Icons.jsx"
+import { todayLocalISO } from "../utils/dateUtils.js"
 
 export default function PalletForm({
   data,
   onChange,
   onGenerate,
+  onClear,
   errors,
 }) {
   const set = (field) => (e) =>
@@ -17,15 +20,12 @@ export default function PalletForm({
       [field]: e.target.value,
     })
 
-  // Fecha mínima: hoy en zona local
-  const hoyISO = (() => {
-    const d = new Date()
-    const offset = d.getTimezoneOffset() * 60000
+  // Fecha de hoy en zona local (mínima permitida y referencia del calendario)
+  const hoyISO = todayLocalISO()
 
-    return new Date(d.getTime() - offset)
-      .toISOString()
-      .slice(0, 10)
-  })()
+  // Formulario "limpio" = sin código, sin cantidad y con la fecha de hoy
+  const estaLimpio =
+    !data.codigo && !data.cantidad && data.fecha === hoyISO
 
   // Código: solo dígitos, máximo 6
   const handleCodigo = (e) => {
@@ -136,6 +136,17 @@ export default function PalletForm({
       >
         <IconTagArrow className="h-5 w-5" />
         Generar vista previa
+      </button>
+
+      {/* Botón limpiar */}
+      <button
+        type="button"
+        onClick={onClear}
+        disabled={estaLimpio}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white py-3.5 text-sm font-semibold text-neutral-600 transition-colors hover:border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
+      >
+        <IconTrash className="h-4 w-4" />
+        Limpiar datos
       </button>
     </div>
   )

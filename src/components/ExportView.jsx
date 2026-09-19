@@ -10,13 +10,31 @@ import {
   IconPrinter,
 } from './Icons.jsx'
 
-export default function ExportView({ data, orientation, onOrientation, onBack, onPrinted }) {
+export default function ExportView({
+  data,
+  orientation,
+  onOrientation,
+  onBack,
+  onPrinted, // se llama al guardar el PDF
+  onPrintDone, // se llama cuando TERMINA la impresión (cierra el diálogo)
+}) {
   const [saving, setSaving] = useState(false)
   const [hideLogo, setHideLogo] = useState(false)
 
   const handlePrint = () => {
+    // "afterprint" se dispara cuando se cierra el diálogo de impresión
+    // (al imprimir o al cancelar). Recién ahí se cuenta la impresión,
+    // se limpia el formulario y se vuelve a la pantalla de datos, para
+    // que la etiqueta no cambie mientras el navegador todavía la usa.
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      window.removeEventListener('afterprint', finish)
+      onPrintDone?.()
+    }
+    window.addEventListener('afterprint', finish)
     window.print()
-    onPrinted?.()
   }
 
   const handleSavePdf = async () => {

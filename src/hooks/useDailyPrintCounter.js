@@ -1,10 +1,12 @@
 // src/hooks/useDailyPrintCounter.js
 import { useEffect, useState } from 'react'
+import { todayLocalISO } from '../utils/dateUtils.js'
 
 const COUNT_KEY = 'rotulo-pallet-vega:print-count'
 const DATE_KEY  = 'rotulo-pallet-vega:print-date'
 
-const today = () => new Date().toISOString().slice(0, 10)
+// Fecha local (no UTC): con toISOString() el contador se reiniciaba a las 7 pm en Perú.
+const today = () => todayLocalISO()
 
 export function useDailyPrintCounter() {
   const [count, setCount] = useState(() => {

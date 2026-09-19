@@ -76,6 +76,10 @@ body {
   margin: 0 auto;
 
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+
+  /* Permite usar la unidad cqw (1% del ancho de la hoja) en el
+     font-size que calcula fitText.js. */
+  container-type: inline-size;
 }
 
 .label-sheet.orientation-portrait {
@@ -313,11 +317,20 @@ body {
   body,
   #root {
     width: 100% !important;
-    height: 100% !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
     overflow: visible !important;
+  }
+
+  /* El contenedor raíz de App.jsx tiene min-h-screen y pb-24: en
+     impresión eso empuja contenido debajo de la hoja y genera una
+     2.ª página en blanco ("2 hojas de papel"). */
+  #root > div {
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
   }
 
   .no-print {
@@ -340,20 +353,27 @@ body {
     max-height: none !important;
     box-shadow: none !important;
     background: #fff !important;
-    page-break-after: always;
-    break-after: page;
+    /* Hay UNA sola hoja: forzar salto de página después de ella es
+       lo que creaba la página en blanco. */
+    page-break-after: auto !important;
+    break-after: auto !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
     overflow: hidden !important;
   }
 
+  /* 0.5 mm menos que el A4 real: si la hoja mide exactamente lo
+     mismo que la página, un redondeo de Chrome la desborda por una
+     fracción y aparece otra hoja. */
   .label-sheet.orientation-portrait {
     width: 210mm !important;
-    height: 297mm !important;
+    height: 296.5mm !important;
     aspect-ratio: auto !important;
   }
 
   .label-sheet.orientation-landscape {
     width: 297mm !important;
-    height: 210mm !important;
+    height: 209.5mm !important;
     aspect-ratio: auto !important;
   }
 

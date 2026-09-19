@@ -18,6 +18,9 @@ const MIN_FONT_PX = 8
 const MAX_FONT_PX = 400
 const SAFETY_MARGIN = 0.985 // pequeño margen para que nunca toque el borde
 
+const SUPPORTS_CQW =
+  typeof CSS !== 'undefined' && typeof CSS.supports === 'function' && CSS.supports('width', '1cqw')
+
 /**
  * Ajusta el font-size de `textEl` para que quepa dentro de las
  * dimensiones actuales de `container`, mediante búsqueda binaria.
@@ -50,6 +53,22 @@ export function fitText(container, textEl, { min = MIN_FONT_PX, max = MAX_FONT_P
   }
 
   textEl.style.fontSize = `${best}px`
+
+  // 🔑 Convierte el tamaño final (px) a una unidad RELATIVA al ancho
+  // de la hoja (cqw = 1% del ancho de .label-sheet). Así, cuando el
+  // navegador pasa de la vista en pantalla (hoja reducida a 92vw/96vw
+  // según el monitor) al layout de impresión (hoja real de 297mm o
+  // 210mm), el texto escala solo, sin depender de que "beforeprint"
+  // vuelva a medir. Antes el tamaño quedaba en px calculado para la
+  // pantalla de CADA usuario, por eso salía distinto en otro equipo.
+  // Si el navegador no soporta cqw, la asignación se ignora y queda px.
+  if (SUPPORTS_CQW) {
+    const sheet = container.closest('.label-sheet')
+    const sheetWidth = sheet ? sheet.clientWidth : 0
+    if (sheetWidth > 0) {
+      textEl.style.fontSize = `${((best / sheetWidth) * 100).toFixed(4)}cqw`
+    }
+  }
 }
 
 /**

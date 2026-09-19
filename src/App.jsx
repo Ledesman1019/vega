@@ -6,9 +6,18 @@ import PrintCounter from './components/PrintCounter.jsx'
 import BottomNav from './components/BottomNav.jsx'
 import SettingsSheet from './components/SettingsSheet.jsx'
 import { useDailyPrintCounter } from './hooks/useDailyPrintCounter.js'
+import { todayLocalISO } from './utils/dateUtils.js'
+import { APP_VERSION, APP_BUILD_DATE } from './version.js'
 import { IconChevronDown, IconZap, IconShield, IconGauge } from './components/Icons.jsx'
 
 const STORAGE_KEY = 'rotulo-pallet-vega:last'
+
+// Formulario vacío, con la fecha de HOY ya seleccionada
+const emptyData = () => ({ codigo: '', fecha: todayLocalISO(), cantidad: '' })
+
+// Si la fecha guardada está vacía o ya pasó (ej. datos de ayer), usa hoy
+const withValidDate = (d) =>
+  !d.fecha || d.fecha < todayLocalISO() ? { ...d, fecha: todayLocalISO() } : d
 
 const FEATURES = [
   { icon: IconZap, title: 'Rápido', text: 'Genera tus etiquetas en segundos.' },
@@ -20,9 +29,9 @@ export default function App() {
   const [data, setData] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) return JSON.parse(saved)
+      if (saved) return withValidDate({ ...emptyData(), ...JSON.parse(saved) })
     } catch (e) { /* almacenamiento no disponible */ }
-    return { codigo: '', fecha: '', cantidad: '' }
+    return emptyData()
   })
   const [orientation, setOrientation] = useState('portrait')
   const [errors, setErrors] = useState({})
@@ -38,6 +47,21 @@ export default function App() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     } catch (e) { /* almacenamiento no disponible */ }
   }, [data])
+
+  // Si la app queda abierta de un día para otro (o la fecha ya pasó),
+  // vuelve a poner la fecha de hoy al regresar a la pestaña.
+  useEffect(() => {
+    const refreshDate = () =>
+      setData((d) => (d.fecha && d.fecha >= todayLocalISO() ? d : { ...d, fecha: todayLocalISO() }))
+    window.addEventListener('focus', refreshDate)
+    document.addEventListener('visibilitychange', refreshDate)
+    const id = setInterval(refreshDate, 60 * 1000)
+    return () => {
+      window.removeEventListener('focus', refreshDate)
+      document.removeEventListener('visibilitychange', refreshDate)
+      clearInterval(id)
+    }
+  }, [])
 
   useEffect(() => {
     let styleTag = document.getElementById('print-orientation-style')
@@ -91,6 +115,19 @@ export default function App() {
     return Object.keys(next).length === 0
   }
 
+  const clearForm = () => {
+    setData(emptyData())
+    setErrors({})
+  }
+
+  // Después de cada impresión: cuenta, limpia el formulario y vuelve al inicio
+  const handlePrintDone = () => {
+    increment()
+    clearForm()
+    setView('form')
+    window.scrollTo?.({ top: 0 })
+  }
+
   const handleGenerate = () => {
     if (!validate()) return
     setView('export')
@@ -120,8 +157,14 @@ export default function App() {
         <div className="flex min-w-0 items-center gap-3">
           <img src="/logo-vega.png" alt="VEGA" className="h-10 w-10 shrink-0 rounded-xl shadow-sm" />
           <div className="min-w-0 leading-tight">
-            <h1 className="truncate text-base font-bold tracking-tight text-white sm:text-lg">
+            <h1 className="flex items-center gap-2 truncate text-base font-bold tracking-tight text-white sm:text-lg">
               Rótulo de Pallet
+              <span
+                title={`Versión ${APP_VERSION} · ${APP_BUILD_DATE}`}
+                className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-normal text-neutral-300"
+              >
+                v{APP_VERSION}
+              </span>
             </h1>
             <p className="truncate text-xs text-neutral-400 sm:text-sm">
               Generador de etiquetas de almacén
@@ -147,6 +190,7 @@ export default function App() {
           onOrientation={setOrientation}
           onBack={() => setView('form')}
           onPrinted={increment}
+          onPrintDone={handlePrintDone}
         />
       ) : (
         <>
@@ -218,6 +262,7 @@ export default function App() {
                     data={data}
                     onChange={setData}
                     onGenerate={handleGenerate}
+                    onClear={clearForm}
                     errors={errors}
                   />
                 </div>
