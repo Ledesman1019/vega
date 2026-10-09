@@ -27,12 +27,13 @@ const CAPTION_RATIO = 0.22 // ancho de la columna de títulos
 const PAD_X = 3.5 // mm
 const PAD_Y = 3 // mm
 
-// Alto de cada fila (proporción del alto útil)
+// Alto de cada fila (proporción del alto útil). El estilo es solo el
+// identificador (fila baja); la descripción es lo que más debe verse.
 const ROWS = [
-  { key: 'estilo', caption: 'ESTILO', ratio: 0.25 },
-  { key: 'descripcion', caption: null, ratio: 0.28 },
-  { key: 'fv', caption: 'FV:', ratio: 0.235 },
-  { key: 'cantidad', caption: 'CANT.', ratio: 0.235 },
+  { key: 'estilo', caption: 'ESTILO', ratio: 0.16 },
+  { key: 'descripcion', caption: null, ratio: 0.4 },
+  { key: 'fv', caption: 'FV:', ratio: 0.22 },
+  { key: 'cantidad', caption: 'CANT.', ratio: 0.22 },
 ]
 
 /* ---------------------------------------------------------------
