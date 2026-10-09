@@ -1,23 +1,19 @@
 // src/modules/productos/ProductosPage.jsx
 //
-// Módulo Productos: consulta de la base (solo lectura por fila: no se
-// edita ni se elimina un producto suelto), importación/exportación en
-// Excel, alta manual y vaciado completo de la base.
+// Módulo Productos: consulta de la base en SOLO LECTURA. Desde la app no
+// se agrega, importa, exporta, edita ni elimina nada; la base se carga
+// desde el panel de Supabase.
 import { useCallback, useEffect, useState } from 'react'
-import { Package, Tags, ListFilter, Search, Upload, Download, Plus, Trash2, Printer, Database, X } from 'lucide-react'
+import { Package, Tags, ListFilter, Search, Printer, Database, X } from 'lucide-react'
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorBanner, Pagination, StatCard, Spinner, inputClass, cx } from '../../components/ui.jsx'
-import { useToast } from '../../components/Toast.jsx'
 import { useDebounce } from '../../hooks/useDebounce.js'
 import { navigate } from '../../lib/router.js'
 import { friendlyError, isSupabaseConfigured } from '../../lib/supabase.js'
-import { SORTS, countProductos, fetchAllProductos, listMarcas, listProductos } from '../../lib/api/productos.js'
-import { exportProductosExcel } from '../../lib/excel.js'
-import { AddProductDialog, ClearBaseDialog, ImportDialog } from './ProductosDialogs.jsx'
+import { SORTS, countProductos, listMarcas, listProductos } from '../../lib/api/productos.js'
 
 const PAGE_SIZE = 50
 
 export default function ProductosPage() {
-  const toast = useToast()
   const [search, setSearch] = useState('')
   const [marca, setMarca] = useState('')
   const [sort, setSort] = useState('estilo')
@@ -31,9 +27,6 @@ export default function ProductosPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
-
-  const [dialog, setDialog] = useState(null) // 'import' | 'add' | 'clear'
-  const [exporting, setExporting] = useState('')
 
   const refresh = useCallback(() => setReload((n) => n + 1), [])
 
@@ -79,24 +72,6 @@ export default function ProductosPage() {
 
   const filtered = Boolean(debounced || marca)
 
-  const handleExport = async () => {
-    setExporting('Preparando…')
-    try {
-      const all = await fetchAllProductos((n) => setExporting(`Descargando ${n.toLocaleString('es-PE')}…`))
-      if (!all.length) {
-        toast('La base está vacía, no hay nada que exportar.', 'info')
-        return
-      }
-      setExporting('Generando Excel…')
-      await exportProductosExcel(all)
-      toast(`Excel exportado con ${all.length.toLocaleString('es-PE')} productos.`)
-    } catch (e) {
-      toast(friendlyError(e), 'error')
-    } finally {
-      setExporting('')
-    }
-  }
-
   const goRotulo = (p) => navigate('rotulo', { estilo: p.estilo })
 
   return (
@@ -120,22 +95,6 @@ export default function ProductosPage() {
           icon={Package}
           title="Base de productos"
           subtitle="Consulta de productos · solo lectura"
-          actions={
-            <>
-              <Button variant="success" icon={Upload} onClick={() => setDialog('import')} className="flex-1 sm:flex-none">
-                Importar Excel
-              </Button>
-              <Button icon={Download} onClick={handleExport} loading={!!exporting} className="flex-1 sm:flex-none">
-                {exporting || 'Exportar Excel'}
-              </Button>
-              <Button icon={Plus} onClick={() => setDialog('add')} className="flex-1 sm:flex-none">
-                Agregar
-              </Button>
-              <Button variant="danger" icon={Trash2} onClick={() => setDialog('clear')} disabled={!total} className="flex-1 sm:flex-none">
-                Vaciar base
-              </Button>
-            </>
-          }
         />
 
         {/* Filtros */}
@@ -185,8 +144,7 @@ export default function ProductosPage() {
             <EmptyState
               icon={Database}
               title="La base de productos está vacía"
-              text="Importa tu Excel con las columnas N° y Descripcion para empezar."
-              action={<Button variant="success" icon={Upload} onClick={() => setDialog('import')}>Importar Excel</Button>}
+              text="Los productos se cargan desde el panel de Supabase (tabla productos)."
             />
           )
         ) : (
@@ -252,9 +210,6 @@ export default function ProductosPage() {
         {count > 0 && <Pagination page={page} pageSize={PAGE_SIZE} count={count} onPage={(p) => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />}
       </Card>
 
-      <ImportDialog open={dialog === 'import'} onClose={() => setDialog(null)} onDone={refresh} />
-      <AddProductDialog open={dialog === 'add'} onClose={() => setDialog(null)} onDone={refresh} />
-      <ClearBaseDialog open={dialog === 'clear'} total={total ?? 0} onClose={() => setDialog(null)} onDone={refresh} />
     </div>
   )
 }

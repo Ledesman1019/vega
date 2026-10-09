@@ -1,133 +1,12 @@
 // src/lib/excel.js
 //
-// Importar / exportar Excel con ExcelJS (se carga solo cuando se usa,
+// Exportar el historial a Excel con ExcelJS (se carga solo cuando se usa,
 // para que la app abra rápido).
-import { normalizeEstilo, isValidEstilo } from './api/productos.js'
 
 const VEGA_RED = 'FFE20514'
 const VEGA_INK = 'FF16171A'
 
 const loadExcel = () => import('exceljs').then((m) => m.default || m)
-
-/* =========================================================
-   IMPORTAR
-   ========================================================= */
-
-const norm = (s) =>
-  String(s ?? '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9°º]/g, '')
-
-const isEstiloHeader = (h) => ['n', 'n°', 'nº', 'no', 'nro', 'numero', 'estilo', 'codigo', 'cod', 'sku', 'item'].includes(norm(h))
-const isDescHeader = (h) => norm(h).startsWith('desc') || ['producto', 'nombre', 'articulo'].includes(norm(h))
-
-function cellText(v) {
-  if (v == null) return ''
-  if (typeof v === 'object') {
-    if (v.richText) return v.richText.map((r) => r.text).join('')
-    if ('result' in v) return cellText(v.result)
-    if (v.text != null) return String(v.text)
-    if (v instanceof Date) return v.toISOString().slice(0, 10)
-  }
-  return String(v)
-}
-
-function parseCsv(text) {
-  const sep = (text.split('\n')[0].match(/;/g) || []).length > (text.split('\n')[0].match(/,/g) || []).length ? ';' : ','
-  const rows = []
-  let row = []
-  let cur = ''
-  let q = false
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i]
-    if (q) {
-      if (c === '"' && text[i + 1] === '"') { cur += '"'; i++ }
-      else if (c === '"') q = false
-      else cur += c
-    } else if (c === '"') q = true
-    else if (c === sep) { row.push(cur); cur = '' }
-    else if (c === '\n' || c === '\r') {
-      if (c === '\r' && text[i + 1] === '\n') i++
-      row.push(cur); rows.push(row); row = []; cur = ''
-    } else cur += c
-  }
-  if (cur || row.length) { row.push(cur); rows.push(row) }
-  return rows
-}
-
-async function readMatrix(file) {
-  const name = file.name.toLowerCase()
-  if (name.endsWith('.csv') || name.endsWith('.txt')) {
-    return parseCsv(await file.text())
-  }
-  if (name.endsWith('.xls')) {
-    throw new Error('El formato .xls (Excel 97-2003) no es compatible. Ábrelo en Excel y guárdalo como .xlsx.')
-  }
-  const ExcelJS = await loadExcel()
-  const wb = new ExcelJS.Workbook()
-  await wb.xlsx.load(await file.arrayBuffer())
-  const ws = wb.worksheets.find((w) => w.actualRowCount > 0) || wb.worksheets[0]
-  if (!ws) return []
-  const rows = []
-  ws.eachRow({ includeEmpty: false }, (r) => {
-    const values = []
-    r.eachCell({ includeEmpty: true }, (cell, col) => {
-      // Respeta el formato de la celda (ej. "000000" -> 010247)
-      let t = cell.text != null && cell.text !== '' ? String(cell.text) : cellText(cell.value)
-      values[col - 1] = t
-    })
-    rows.push(values.map((v) => v ?? ''))
-  })
-  return rows
-}
-
-/**
- * Lee un Excel/CSV y devuelve { rows: [{estilo, descripcion}], skipped, duplicated, total }.
- * Detecta las columnas por encabezado (N° / Estilo / Código y Descripción);
- * si no hay encabezado usa columna A = estilo, B = descripción.
- */
-export async function parseProductosFile(file) {
-  const matrix = await readMatrix(file)
-  if (!matrix.length) throw new Error('El archivo está vacío.')
-
-  let headerIdx = -1
-  let colEstilo = 0
-  let colDesc = 1
-  for (let i = 0; i < Math.min(matrix.length, 10); i++) {
-    const r = matrix[i]
-    const e = r.findIndex(isEstiloHeader)
-    const d = r.findIndex(isDescHeader)
-    if (e !== -1 && d !== -1) {
-      headerIdx = i
-      colEstilo = e
-      colDesc = d
-      break
-    }
-  }
-
-  const map = new Map()
-  let skipped = 0
-  let total = 0
-  for (let i = headerIdx + 1; i < matrix.length; i++) {
-    const r = matrix[i]
-    const rawE = r[colEstilo]
-    const rawD = r[colDesc]
-    if (!String(rawE ?? '').trim() && !String(rawD ?? '').trim()) continue
-    total++
-    const estilo = normalizeEstilo(rawE)
-    const descripcion = String(rawD ?? '').replace(/\s+/g, ' ').trim()
-    if (!isValidEstilo(estilo) || !descripcion) {
-      skipped++
-      continue
-    }
-    map.set(estilo, { estilo, descripcion })
-  }
-
-  const rows = [...map.values()]
-  return { rows, skipped, duplicated: total - skipped - rows.length, total }
-}
 
 /* =========================================================
    EXPORTAR
@@ -212,22 +91,6 @@ async function buildSheet({ sheetName, title, subtitle, columns, rows }) {
   return wb
 }
 
-export async function exportProductosExcel(productos) {
-  const wb = await buildSheet({
-    sheetName: 'Productos',
-    title: 'VEGA · Base de productos',
-    subtitle: `${productos.length.toLocaleString('es-PE')} productos · Exportado el ${new Date().toLocaleString('es-PE')}`,
-    columns: [
-      // Estilo como TEXTO: así Excel no le quita los ceros (010247)
-      { key: 'estilo', header: 'N°', width: 14, value: (r) => r.estilo, numFmt: '@', bold: true },
-      { key: 'descripcion', header: 'Descripcion', width: 62, value: (r) => r.descripcion },
-      { key: 'marca', header: 'Marca', width: 20, value: (r) => r.marca },
-    ],
-    rows: productos,
-  })
-  download(await wb.xlsx.writeBuffer(), `VEGA_productos_${stamp()}.xlsx`)
-}
-
 export async function exportHistorialExcel(items) {
   const wb = await buildSheet({
     sheetName: 'Historial',
@@ -245,19 +108,4 @@ export async function exportHistorialExcel(items) {
     rows: items,
   })
   download(await wb.xlsx.writeBuffer(), `VEGA_historial_rotulos_${stamp()}.xlsx`)
-}
-
-/** Plantilla vacía para importar. */
-export async function downloadPlantilla() {
-  const wb = await buildSheet({
-    sheetName: 'Productos',
-    title: 'VEGA · Plantilla de importación',
-    subtitle: 'Llena desde la fila 5. Columna N° = estilo (6 dígitos), Descripcion = nombre del producto.',
-    columns: [
-      { key: 'estilo', header: 'N°', width: 14, value: (r) => r.estilo, numFmt: '@', bold: true },
-      { key: 'descripcion', header: 'Descripcion', width: 62, value: (r) => r.descripcion },
-    ],
-    rows: [{ estilo: '010247', descripcion: 'SAPOLIO BALDE *15LT+1DET.*6KG' }],
-  })
-  download(await wb.xlsx.writeBuffer(), 'VEGA_plantilla_productos.xlsx')
 }

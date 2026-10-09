@@ -10,7 +10,7 @@ create extension if not exists pg_trgm;
 
 
 -- ---------------------------------------------------------------------
--- 1) PRODUCTOS (la base que se importa/exporta en Excel)
+-- 1) PRODUCTOS (base de consulta: se carga desde el panel de Supabase)
 -- ---------------------------------------------------------------------
 create table if not exists public.productos (
   estilo       text primary key,
@@ -50,18 +50,9 @@ with (security_invoker = true) as
   group by marca
   order by marca;
 
--- Vaciar toda la base de productos (botón "Vaciar base").
--- Es la ÚNICA forma de borrar productos desde la app: no se permite
--- eliminar productos uno por uno.
-create or replace function public.vaciar_productos()
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  truncate table public.productos;
-end $$;
+-- (Versiones anteriores tenían una función para vaciar la base desde la
+-- app. Se elimina por seguridad.)
+drop function if exists public.vaciar_productos();
 
 
 -- ---------------------------------------------------------------------
@@ -86,8 +77,8 @@ create index if not exists rotulos_historial_estilo_idx  on public.rotulos_histo
 -- 3) SEGURIDAD (RLS)
 --    La app no tiene inicio de sesión, así que trabaja con la clave
 --    "anon". Permisos:
---      productos          -> ver, agregar, importar (insert/update)
---                            NO borrar filas sueltas (solo "vaciar base")
+--      productos          -> SOLO ver. Agregar/editar/borrar productos se
+--                            hace únicamente desde el panel de Supabase.
 --      rotulos_historial  -> ver y registrar. NO editar ni borrar.
 -- ---------------------------------------------------------------------
 alter table public.productos         enable row level security;
@@ -97,8 +88,6 @@ drop policy if exists "productos_select" on public.productos;
 drop policy if exists "productos_insert" on public.productos;
 drop policy if exists "productos_update" on public.productos;
 create policy "productos_select" on public.productos for select to anon, authenticated using (true);
-create policy "productos_insert" on public.productos for insert to anon, authenticated with check (true);
-create policy "productos_update" on public.productos for update to anon, authenticated using (true) with check (true);
 
 drop policy if exists "historial_select" on public.rotulos_historial;
 drop policy if exists "historial_insert" on public.rotulos_historial;
@@ -107,14 +96,12 @@ create policy "historial_insert" on public.rotulos_historial for insert to anon,
 
 -- Permisos explícitos (algunos proyectos nuevos de Supabase ya no los dan por defecto)
 grant usage on schema public to anon, authenticated;
-grant select, insert, update on public.productos to anon, authenticated;
-revoke delete on public.productos from anon, authenticated;
+grant select on public.productos to anon, authenticated;
+revoke insert, update, delete, truncate on public.productos from anon, authenticated;
 grant select on public.productos_marcas to anon, authenticated;
 grant select, insert on public.rotulos_historial to anon, authenticated;
-revoke update, delete on public.rotulos_historial from anon, authenticated;
+revoke update, delete, truncate on public.rotulos_historial from anon, authenticated;
 grant usage, select on all sequences in schema public to anon, authenticated;
-revoke all on function public.vaciar_productos() from public;
-grant execute on function public.vaciar_productos() to anon, authenticated;
 
 -- Que la API (PostgREST) vea los cambios al instante
 notify pgrst, 'reload schema';
