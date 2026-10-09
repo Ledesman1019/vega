@@ -2,24 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-
-/* =========================================================
-   FUENTE PROPIA (evita depender de fuentes del sistema,
-   que es lo que rompía el PDF al no encontrar Arial Black)
-   ========================================================= */
-
+/* Fuente del rótulo (incluida en la app: no depende del sistema) */
 @font-face {
   font-family: "EtiquetaBlack";
   src: url("/fonts/ArchivoBlack-Regular.ttf") format("truetype");
-  font-weight: 900;
+  font-weight: 400 900;
   font-style: normal;
   font-display: block;
 }
-
-
-/* =========================================================
-   BASE
-   ========================================================= */
 
 html,
 body,
@@ -27,412 +17,60 @@ body,
   min-height: 100%;
 }
 
-html,
 body {
-  width: 100%;
   margin: 0;
-  padding: 0;
   overflow-x: hidden;
-}
-
-body {
+  background: #f4f4f5;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
 
-
-/* =========================================================
-   ANIMACIÓN
-   ========================================================= */
-
 @keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
 
+/* Inputs numéricos sin flechas */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] { -moz-appearance: textfield; }
 
 /* =========================================================
-   HOJA A4
+   IMPRESIÓN
+   La copia imprimible del rótulo (.print-area) vive fuera de #root
+   y solo se ve al imprimir: una hoja horizontal completa.
+   El @page (A4 / Carta) lo inyecta LabelSheet.jsx.
    ========================================================= */
-
-.label-sheet {
-  position: relative;
-
-  box-sizing: border-box;
-
-  background: #fff;
-  color: #000;
-
-  font-family: "EtiquetaBlack", Arial, Helvetica, sans-serif;
-
-  overflow: hidden;
-
-  display: block;
-
-  margin: 0 auto;
-
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
-
-  /* Permite usar la unidad cqw (1% del ancho de la hoja) en el
-     font-size que calcula fitText.js. */
-  container-type: inline-size;
+.print-area {
+  display: none;
 }
-
-.label-sheet.orientation-portrait {
-  width: 210mm;
-  height: 297mm;
-  aspect-ratio: 210 / 297;
-}
-
-.label-sheet.orientation-landscape {
-  width: 297mm;
-  height: 210mm;
-  aspect-ratio: 297 / 210;
-}
-
-
-/* =========================================================
-   LOGO VEGA
-   ========================================================= */
-
-.label-logo {
-  position: absolute;
-
-  top: 4mm;
-  right: 5mm;
-
-  width: 16mm !important;
-  height: 8mm !important;
-
-  max-width: 16mm !important;
-  max-height: 8mm !important;
-
-  object-fit: contain;
-
-  z-index: 100;
-}
-
-
-/* =========================================================
-   TABLA PRINCIPAL
-   ========================================================= */
-
-.label-body {
-  position: absolute;
-
-  left: 4mm;
-  right: 4mm;
-  bottom: 4mm;
-  top: 18mm;
-
-  display: flex;
-  flex-direction: column;
-
-  overflow: hidden;
-
-  border: 1mm solid #000;
-
-  box-sizing: border-box;
-}
-
-/* Modo de prueba "sin logo": usa toda la hoja, sin reservar espacio
-   arriba, para maximizar el tamaño de los números. */
-.label-sheet.no-logo .label-body {
-  top: 4mm;
-}
-
-
-/* =========================================================
-   FILAS
-   ========================================================= */
-
-.label-row {
-  position: relative;
-
-  width: 100%;
-  height: 33.333333%;
-  flex: 1 1 33.333333%;
-
-  min-height: 0;
-
-  display: flex;
-
-  box-sizing: border-box;
-
-  border-bottom: 0.8mm solid #000;
-
-  overflow: hidden;
-}
-
-.label-row.last-row {
-  border-bottom: none;
-}
-
-
-/* =========================================================
-   COLUMNA IZQUIERDA (etiquetas)
-   ========================================================= */
-
-.label-caption {
-  width: 32%;
-  flex: 0 0 32%;
-
-  box-sizing: border-box;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border-right: 0.8mm solid #000;
-
-  padding: 3mm;
-
-  overflow: hidden;
-}
-
-/* Caja de tamaño fijo (la da el layout de la fila/columna); solo
-   centra el texto real (.autofit-text) que vive adentro. */
-.autofit-box {
-  width: 100%;
-  height: 100%;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  overflow: hidden;
-}
-
-/* El texto real que mide y redimensiona fitText.js. inline-block +
-   nowrap = su offsetWidth/offsetHeight reflejan el tamaño real del
-   texto a su font-size actual, sin que nada lo fuerce a un ancho
-   distinto (a diferencia de un width:100%, que falseaba la medición
-   y hacía que el autoajuste calculara mal el tamaño). */
-.autofit-text {
-  display: inline-block;
-  white-space: nowrap;
-}
-
-.autofit-caption {
-  text-align: center;
-
-  font-family: "EtiquetaBlack", Arial, Helvetica, sans-serif;
-  font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: -0.3px;
-  text-transform: uppercase;
-}
-
-.autofit-caption span {
-  display: block;
-  white-space: nowrap;
-  font-size: 1em;
-}
-
-.autofit-value {
-  text-align: center;
-
-  font-family: "EtiquetaBlack", Arial, Helvetica, sans-serif;
-  font-weight: 900;
-
-  letter-spacing: -0.02em;
-  line-height: 0.85;
-}
-
-
-/* =========================================================
-   CELDA DERECHA (números)
-   ========================================================= */
-
-.label-value-cell {
-  width: 68%;
-  flex: 1 1 68%;
-
-  min-width: 0;
-  min-height: 0;
-
-  box-sizing: border-box;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  overflow: hidden;
-
-  padding: 1mm 4mm;
-}
-
-
-/* =========================================================
-   EXPORT STAGE
-   ========================================================= */
-
-.export-stage {
-  width: 100%;
-
-  box-sizing: border-box;
-
-  padding: 16px;
-
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-
-  overflow: auto;
-}
-
-
-/* =========================================================
-   VISTA PREVIA EN PANTALLA
-   ========================================================= */
-
-@media screen {
-  .label-sheet.orientation-portrait {
-    width: min(210mm, 92vw);
-    height: auto;
-    aspect-ratio: 210 / 297;
-    max-height: 90vh;
-  }
-
-  .label-sheet.orientation-landscape {
-    width: min(297mm, 96vw);
-    height: auto;
-    aspect-ratio: 297 / 210;
-    max-height: 90vh;
-  }
-}
-
-
-/* =========================================================
-   IMPRESIÓN / PDF
-   ========================================================= */
 
 @media print {
-
   html,
-  body,
-  #root {
-    width: 100% !important;
-    height: auto !important;
+  body {
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
+    min-height: 0 !important;
+    height: auto !important;
     overflow: visible !important;
   }
 
-  /* El contenedor raíz de App.jsx tiene min-h-screen y pb-24: en
-     impresión eso empuja contenido debajo de la hoja y genera una
-     2.ª página en blanco ("2 hojas de papel"). */
-  #root > div {
-    min-height: 0 !important;
-    height: auto !important;
-    padding: 0 !important;
-  }
-
+  #root,
   .no-print {
     display: none !important;
   }
 
-  .export-stage {
-    width: 100% !important;
-    height: auto !important;
-    margin: 0 !important;
-    padding: 0 !important;
+  .print-area {
     display: block !important;
-    overflow: visible !important;
-  }
-
-  .label-sheet {
-    box-sizing: border-box;
-    margin: 0 !important;
-    max-width: none !important;
-    max-height: none !important;
-    box-shadow: none !important;
-    background: #fff !important;
-    /* Hay UNA sola hoja: forzar salto de página después de ella es
-       lo que creaba la página en blanco. */
-    page-break-after: auto !important;
-    break-after: auto !important;
+    margin: 0;
+    padding: 0;
     page-break-inside: avoid;
     break-inside: avoid;
-    overflow: hidden !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
-
-  /* 0.5 mm menos que el A4 real: si la hoja mide exactamente lo
-     mismo que la página, un redondeo de Chrome la desborda por una
-     fracción y aparece otra hoja. */
-  .label-sheet.orientation-portrait {
-    width: 210mm !important;
-    height: 296.5mm !important;
-    aspect-ratio: auto !important;
-  }
-
-  .label-sheet.orientation-landscape {
-    width: 297mm !important;
-    height: 209.5mm !important;
-    aspect-ratio: auto !important;
-  }
-
-  .label-body {
-    left: 4mm !important;
-    right: 4mm !important;
-    bottom: 4mm !important;
-    top: 18mm !important;
-    border: 1mm solid #000 !important;
-  }
-
-  .label-sheet.no-logo .label-body {
-    top: 4mm !important;
-  }
-
-  .label-logo {
-    top: 4mm !important;
-    right: 5mm !important;
-    width: 16mm !important;
-    height: 8mm !important;
-    max-width: 16mm !important;
-    max-height: 8mm !important;
-  }
-
-  .label-row {
-    height: 33.333333% !important;
-    flex: 1 1 33.333333% !important;
-    border-bottom: 0.8mm solid #000 !important;
-  }
-
-  .label-row.last-row {
-    border-bottom: none !important;
-  }
-
-  .label-caption {
-    width: 32% !important;
-    flex: 0 0 32% !important;
-    border-right: 0.8mm solid #000 !important;
-    padding: 3mm !important;
-  }
-
-  .label-value-cell {
-    width: 68% !important;
-    flex: 1 1 68% !important;
-    padding: 1mm 4mm !important;
-  }
-
-  /* El tamaño de fuente NO se fuerza aquí: lo calcula fitText.js
-     en el evento "beforeprint", según el ancho/alto real de cada
-     caja para esta hoja A4. Forzar un px fijo es lo que antes
-     hacía que la fecha (más caracteres) se saliera del recuadro. */
 }
-
-
-/* =========================================================
-   PÁGINA DE IMPRESIÓN
-   ========================================================= */
-/* La regla @page (tamaño A4 vertical/horizontal) NO se define aquí:
-   App.jsx la inyecta dinámicamente según el estado "orientation"
-   (ver el useEffect con "print-orientation-style"). Tener dos
-   fuentes para el mismo @page era una causa extra de resultados
-   inconsistentes al imprimir. */

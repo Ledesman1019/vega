@@ -13,3 +13,18 @@ export function todayLocalISO() {
   const dd = String(d.getDate()).padStart(2, '0')
   return `${yyyy}-${mm}-${dd}`
 }
+// YYYY-MM-DD -> DD/MM/YYYY
+export function formatFecha(iso) {
+  if (!iso) return ''
+  const [y, m, d] = String(iso).slice(0, 10).split('-')
+  return y && m && d ? `${d}/${m}/${y}` : iso
+}
+
+// timestamp -> { fecha: '09/10/2026', hora: '14:35' } en hora local
+export function formatFechaHora(ts) {
+  const d = new Date(ts)
+  return {
+    fecha: d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    hora: d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+  }
+}

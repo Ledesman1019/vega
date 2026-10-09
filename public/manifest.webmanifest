@@ -1,13 +1,13 @@
 {
-  "name": "VEGA",
-  "short_name": " VEGA",
-  "description": "Generador de etiquetas de almacén.",
+  "name": "VEGA · Rótulos de almacén",
+  "short_name": "VEGA Rótulos",
+  "description": "Productos, rótulos e historial de almacén VEGA.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#dc2626",
+  "orientation": "any",
+  "background_color": "#f4f4f5",
+  "theme_color": "#16171a",
   "lang": "es",
   "icons": [
     {
