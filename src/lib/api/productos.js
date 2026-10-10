@@ -87,22 +87,15 @@ export async function suggestProductos(q, limit = 8) {
   return data || []
 }
 
-/** Descarga toda la base (en páginas de 1000, el máximo de la API). */
-export async function fetchAllProductos(onProgress) {
+/**
+ * Descarga toda la base para exportar. Exige la clave de administrador
+ * (función exportar_productos de supabase/03_exportar_con_clave.sql).
+ */
+export async function exportarProductos(clave) {
   const sb = requireSupabase()
-  const all = []
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await sb
-      .from('productos')
-      .select('estilo, descripcion, marca')
-      .order('estilo')
-      .range(from, from + 999)
-    if (error) throw error
-    all.push(...data)
-    onProgress?.(all.length)
-    if (data.length < 1000) break
-  }
-  return all
+  const { data, error } = await sb.rpc('exportar_productos', { p_clave: clave })
+  if (error) throw error
+  return data || []
 }
 
 /**

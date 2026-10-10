@@ -2,17 +2,17 @@
 //
 // Módulo Productos: consulta de la base. Por fila no se edita ni se
 // elimina nada. Importar Excel exige la clave de administrador y nunca
-// duplica (ver supabase/02_importar_con_clave.sql). Exportar solo lee.
+// duplica (ver supabase/02_importar_con_clave.sql). Exportar exige la
+// misma clave (ver supabase/03_exportar_con_clave.sql).
 import { useCallback, useEffect, useState } from 'react'
 import { Package, Tags, ListFilter, Search, Printer, Database, X, Upload, Download } from 'lucide-react'
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorBanner, Pagination, StatCard, Spinner, inputClass, cx } from '../../components/ui.jsx'
-import { useToast } from '../../components/Toast.jsx'
 import { useDebounce } from '../../hooks/useDebounce.js'
 import { navigate } from '../../lib/router.js'
 import { friendlyError, isSupabaseConfigured } from '../../lib/supabase.js'
-import { SORTS, countProductos, fetchAllProductos, listMarcas, listProductos } from '../../lib/api/productos.js'
-import { exportProductosExcel } from '../../lib/excel.js'
+import { SORTS, countProductos, listMarcas, listProductos } from '../../lib/api/productos.js'
 import ImportDialog from './ImportDialog.jsx'
+import ExportDialog from './ExportDialog.jsx'
 
 const PAGE_SIZE = 50
 
@@ -32,27 +32,8 @@ export default function ProductosPage() {
   const [reload, setReload] = useState(0)
 
   const refresh = useCallback(() => setReload((n) => n + 1), [])
-  const toast = useToast()
   const [importOpen, setImportOpen] = useState(false)
-  const [exporting, setExporting] = useState('')
-
-  const handleExport = async () => {
-    setExporting('Preparando…')
-    try {
-      const all = await fetchAllProductos((n) => setExporting(`Descargando ${n.toLocaleString('es-PE')}…`))
-      if (!all.length) {
-        toast('La base está vacía, no hay nada que exportar.', 'info')
-        return
-      }
-      setExporting('Generando Excel…')
-      await exportProductosExcel(all)
-      toast(`Excel exportado con ${all.length.toLocaleString('es-PE')} productos.`)
-    } catch (e) {
-      toast(friendlyError(e), 'error')
-    } finally {
-      setExporting('')
-    }
-  }
+  const [exportOpen, setExportOpen] = useState(false)
 
   // Totales y marcas
   useEffect(() => {
@@ -118,14 +99,14 @@ export default function ProductosPage() {
         <CardHeader
           icon={Package}
           title="Base de productos"
-          subtitle="Consulta de productos · importar requiere clave"
+          subtitle="Consulta de productos · importar y exportar requieren clave"
           actions={
             <>
               <Button variant="success" icon={Upload} onClick={() => setImportOpen(true)} className="flex-1 sm:flex-none">
                 Importar Excel
               </Button>
-              <Button icon={Download} onClick={handleExport} loading={!!exporting} className="flex-1 sm:flex-none">
-                {exporting || 'Exportar Excel'}
+              <Button icon={Download} onClick={() => setExportOpen(true)} className="flex-1 sm:flex-none">
+                Exportar Excel
               </Button>
             </>
           }
@@ -246,6 +227,7 @@ export default function ProductosPage() {
       </Card>
 
       <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onDone={refresh} />
+      <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
     </div>
   )
 }
