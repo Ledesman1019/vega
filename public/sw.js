@@ -3,7 +3,7 @@
 // ⚠️ CADA VEZ QUE PUBLIQUES UNA VERSIÓN NUEVA, SUBE ESTE NÚMERO.
 // (aunque con network-first para el HTML ya no es imprescindible,
 // sirve para forzar la limpieza del caché viejo en todos los equipos)
-const VERSION = 'v5'
+const VERSION = 'v6'
 const CACHE = `vega-rotulos-${VERSION}`
 
 // Solo recursos estáticos que casi no cambian. NO se precachean '/'

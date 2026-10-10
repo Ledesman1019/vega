@@ -86,3 +86,47 @@ export async function suggestProductos(q, limit = 8) {
   if (error) throw error
   return data || []
 }
+
+/** Descarga toda la base (en páginas de 1000, el máximo de la API). */
+export async function fetchAllProductos(onProgress) {
+  const sb = requireSupabase()
+  const all = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb
+      .from('productos')
+      .select('estilo, descripcion, marca')
+      .order('estilo')
+      .range(from, from + 999)
+    if (error) throw error
+    all.push(...data)
+    onProgress?.(all.length)
+    if (data.length < 1000) break
+  }
+  return all
+}
+
+/**
+ * Importa con la clave de administrador (función importar_productos de
+ * supabase/02_importar_con_clave.sql). Nunca duplica: agrega estilos
+ * nuevos, actualiza los que cambiaron de descripción y no toca el resto.
+ * aplicar=false solo cuenta (vista previa).
+ * Devuelve { nuevos, actualizados, sin_cambios }.
+ */
+export async function importarProductos({ clave, rows, aplicar, onProgress }) {
+  const sb = requireSupabase()
+  const BATCH = 1000
+  const total = { nuevos: 0, actualizados: 0, sin_cambios: 0 }
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const { data, error } = await sb.rpc('importar_productos', {
+      p_clave: clave,
+      p_productos: rows.slice(i, i + BATCH),
+      p_aplicar: aplicar,
+    })
+    if (error) throw error
+    total.nuevos += data.nuevos
+    total.actualizados += data.actualizados
+    total.sin_cambios += data.sin_cambios
+    onProgress?.(Math.min(i + BATCH, rows.length), rows.length)
+  }
+  return total
+}

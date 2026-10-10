@@ -78,7 +78,8 @@ create index if not exists rotulos_historial_estilo_idx  on public.rotulos_histo
 --    La app no tiene inicio de sesión, así que trabaja con la clave
 --    "anon". Permisos:
 --      productos          -> SOLO ver. Agregar/editar/borrar productos se
---                            hace únicamente desde el panel de Supabase.
+--                            hace desde el panel de Supabase o con el botón
+--                            "Importar Excel" (exige clave, ver 02_importar_con_clave.sql).
 --      rotulos_historial  -> ver y registrar. NO editar ni borrar.
 -- ---------------------------------------------------------------------
 alter table public.productos         enable row level security;

@@ -11,7 +11,7 @@ import { APP_VERSION } from '../version.js'
 import { cx } from '../components/ui.jsx'
 
 export const MODULES = [
-  { id: 'productos', label: 'Productos', short: 'Productos', icon: Package, desc: 'Consulta de la base de productos' },
+  { id: 'productos', label: 'Productos', short: 'Productos', icon: Package, desc: 'Base de productos · importar y exportar' },
   { id: 'rotulo', label: 'Crear rótulo', short: 'Rótulo', icon: Tag, desc: 'Genera, imprime o descarga el rótulo del pallet' },
   { id: 'historial', label: 'Historial de rótulos', short: 'Historial', icon: History, desc: 'Rótulos impresos y descargados' },
 ]
