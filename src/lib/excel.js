@@ -20,8 +20,20 @@ const norm = (s) =>
     .toLowerCase()
     .replace(/[^a-z0-9°º]/g, '')
 
-const isEstiloHeader = (h) => ['n', 'n°', 'nº', 'no', 'nro', 'numero', 'estilo', 'codigo', 'cod', 'sku', 'item'].includes(norm(h))
-const isDescHeader = (h) => norm(h).startsWith('desc') || ['producto', 'nombre', 'articulo'].includes(norm(h))
+// Acepta nombres exactos (N°, Estilo, Código…) y compuestos como
+// "ProductoCodigo", "Código producto", "Estilo SAP" o "ProductoDescripcion".
+const isEstiloHeader = (h) => {
+  const n = norm(h)
+  return (
+    ['n', 'n°', 'nº', 'no', 'nro', 'numero', 'cod', 'sku', 'item'].includes(n) ||
+    n.includes('codigo') ||
+    n.includes('estilo')
+  )
+}
+const isDescHeader = (h) => {
+  const n = norm(h)
+  return n.includes('desc') || ['producto', 'nombre', 'articulo'].includes(n)
+}
 
 function cellText(v) {
   if (v == null) return ''
@@ -99,12 +111,20 @@ export async function parseProductosFile(file) {
     const r = matrix[i]
     const e = r.findIndex(isEstiloHeader)
     const d = r.findIndex(isDescHeader)
-    if (e !== -1 && d !== -1) {
+    if (e !== -1 && d !== -1 && e !== d) {
       headerIdx = i
       colEstilo = e
       colDesc = d
       break
     }
+  }
+
+  // Sin encabezados: usa las dos primeras columnas con datos (la tabla
+  // puede empezar en la columna B, C…)
+  if (headerIdx === -1) {
+    const first = matrix.find((r) => r.filter((v) => String(v ?? '').trim()).length >= 2) || []
+    const cols = first.map((v, i) => (String(v ?? '').trim() ? i : -1)).filter((i) => i !== -1)
+    if (cols.length >= 2) [colEstilo, colDesc] = cols
   }
 
   const map = new Map()

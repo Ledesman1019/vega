@@ -47,7 +47,7 @@ export default function ImportDialog({ open, onClose, onDone }) {
     setBusy('leyendo')
     try {
       const result = await parseProductosFile(f)
-      if (!result.rows.length) throw new Error('No se encontraron productos válidos. Revisa que tenga las columnas N° y Descripcion.')
+      if (!result.rows.length) throw new Error('No se encontraron productos válidos. El Excel debe tener una columna de código o estilo (ej. N°, ProductoCodigo) y otra de descripción.')
       setParsed(result)
     } catch (e) {
       setError(e.message || String(e))
@@ -146,7 +146,7 @@ export default function ImportDialog({ open, onClose, onDone }) {
         ) : (
           <>
             <span className="font-bold text-zinc-800">Elige o arrastra tu archivo Excel</span>
-            <span className="text-xs text-zinc-500">Formatos .xlsx o .csv · columnas <b>N°</b> y <b>Descripcion</b></span>
+            <span className="text-xs text-zinc-500">Formatos .xlsx o .csv · columna de <b>código</b> y de <b>descripción</b></span>
           </>
         )}
       </button>
