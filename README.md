@@ -34,6 +34,19 @@ No necesitas configurar nada más: no hay backend, todo corre en el navegador.
    - Para guardarlo como PDF, elige "Guardar como PDF" en el destino de la impresora
      (funciona igual en Windows, Mac, Android y iPhone).
 
+## Escáner de códigos de barras (EAN-13)
+
+En **Crear rótulo**, el botón **Escanear** abre la cámara del celular: al leer un EAN-13
+busca el producto y llena el estilo y la descripción. También acepta escribir el código
+de 13 dígitos en el campo de estilo (sirve con lectoras USB/Bluetooth).
+
+1. Ejecuta `supabase/04_codigos_barras.sql` en Supabase > SQL Editor (crea la tabla
+   `productos_ean`; un estilo puede tener varios códigos).
+2. Carga los códigos con **Productos → Importar Excel**: agrega una columna `EAN`
+   (o "Código de barras") junto al estilo. Un archivo con solo Estilo + EAN también sirve.
+
+La cámara solo funciona con `https://` (Vercel) o en `localhost`.
+
 ## Instalar como app (PWA)
 
 - **En el teléfono (Android/Chrome):** aparecerá un aviso para "Instalar"; también puedes

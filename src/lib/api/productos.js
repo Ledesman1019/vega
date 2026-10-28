@@ -22,6 +22,23 @@ export function normalizeEstilo(value) {
 
 export const isValidEstilo = (s) => /^[0-9A-Z-]{1,20}$/.test(s)
 
+/** Limpia un código de barras leído del Excel (sin espacios ni ".0"). */
+export function normalizeEan(value) {
+  let s = String(value ?? '').trim().replace(/\s+/g, '')
+  if (/^\d+\.0+$/.test(s)) s = s.replace(/\.0+$/, '')
+  return s
+}
+
+export const isValidEan = (s) => /^\d{8,14}$/.test(s)
+
+/** EAN-13 con dígito verificador correcto (descarta lecturas fallidas). */
+export function isValidEan13(value) {
+  const s = String(value ?? '').trim()
+  if (!/^\d{13}$/.test(s)) return false
+  const sum = [...s.slice(0, 12)].reduce((acc, d, i) => acc + Number(d) * (i % 2 ? 3 : 1), 0)
+  return (10 - (sum % 10)) % 10 === Number(s[12])
+}
+
 export async function listProductos({ search = '', marca = '', sort = 'estilo', page = 0, pageSize = 50 }) {
   const sb = requireSupabase()
   const s = SORTS[sort] || SORTS.estilo
@@ -72,6 +89,18 @@ export async function getProducto(estilo) {
   return data
 }
 
+/** Busca el producto por su código de barras (tabla productos_ean). */
+export async function getProductoByEan(ean) {
+  const sb = requireSupabase()
+  const { data, error } = await sb
+    .from('productos_ean')
+    .select('producto:productos(estilo, descripcion, marca)')
+    .eq('ean', String(ean).trim())
+    .maybeSingle()
+  if (error) throw error
+  return data?.producto || null
+}
+
 /** Sugerencias para el buscador del rótulo (por estilo o descripción). */
 export async function suggestProductos(q, limit = 8) {
   const term = cleanTerm(q)
@@ -120,6 +149,27 @@ export async function importarProductos({ clave, rows, aplicar, onProgress }) {
     total.actualizados += data.actualizados
     total.sin_cambios += data.sin_cambios
     onProgress?.(Math.min(i + BATCH, rows.length), rows.length)
+  }
+  return total
+}
+
+/**
+ * Importa los códigos de barras con la misma clave (función importar_eans
+ * de supabase/04_codigos_barras.sql). codigos: [{ ean, estilo }].
+ * Devuelve { nuevos, actualizados, sin_cambios, sin_producto }.
+ */
+export async function importarEans({ clave, codigos, aplicar }) {
+  const sb = requireSupabase()
+  const BATCH = 1000
+  const total = { nuevos: 0, actualizados: 0, sin_cambios: 0, sin_producto: 0 }
+  for (let i = 0; i < codigos.length; i += BATCH) {
+    const { data, error } = await sb.rpc('importar_eans', {
+      p_clave: clave,
+      p_codigos: codigos.slice(i, i + BATCH),
+      p_aplicar: aplicar,
+    })
+    if (error) throw error
+    for (const k of Object.keys(total)) total[k] += data[k] ?? 0
   }
   return total
 }

@@ -5,17 +5,18 @@
 // imprime o descarga en UNA hoja horizontal, con todo lo más grande
 // posible. Cada impresión/descarga queda en el historial.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Barcode, CalendarDays, Boxes, FileText, Printer, FileDown, Search, Eraser, Tag, CircleCheck, CircleX, LoaderCircle, Info } from 'lucide-react'
+import { Barcode, CalendarDays, Boxes, FileText, Printer, FileDown, Search, Eraser, Tag, CircleCheck, CircleX, LoaderCircle, Info, ScanBarcode } from 'lucide-react'
 import { Button, Card, CardHeader, Field, inputClass, cx } from '../../components/ui.jsx'
 import { useToast } from '../../components/Toast.jsx'
 import { useDebounce } from '../../hooks/useDebounce.js'
 import { friendlyError, isSupabaseConfigured } from '../../lib/supabase.js'
-import { getProducto, isValidEstilo, normalizeEstilo, suggestProductos } from '../../lib/api/productos.js'
+import { getProducto, getProductoByEan, isValidEan13, isValidEstilo, normalizeEstilo, suggestProductos } from '../../lib/api/productos.js'
 import { registrarRotulo } from '../../lib/api/historial.js'
 import { PAPERS, computeLabelLayout, loadLabelFont } from '../../lib/label/layout.js'
 import { buildLabelPdf } from '../../lib/label/pdf.js'
 import { todayLocalISO } from '../../utils/dateUtils.js'
 import { LabelSvg, PrintableLabel } from './LabelSheet.jsx'
+import BarcodeScanner from './BarcodeScanner.jsx'
 
 const PAPER_KEY = 'vega-rotulos:papel'
 
@@ -40,6 +41,7 @@ export default function RotuloPage({ params }) {
   const [showSug, setShowSug] = useState(false)
   const [fontReady, setFontReady] = useState(false)
   const [busy, setBusy] = useState('') // 'pdf' | 'print'
+  const [scanOpen, setScanOpen] = useState(false)
 
   const fechaRef = useRef(null)
 
@@ -73,6 +75,26 @@ export default function RotuloPage({ params }) {
       return
     }
     setLookup('loading')
+    // Código de barras escrito o leído con una lectora USB/Bluetooth
+    if (isValidEan13(debounced)) {
+      getProductoByEan(debounced)
+        .then((p) => {
+          if (!alive) return
+          if (p) return pick(p)
+          setProducto(null)
+          setLookup('notfound')
+          setSuggestions([])
+        })
+        .catch((e) => {
+          if (!alive) return
+          setProducto(null)
+          setLookup('error')
+          setErrors((x) => ({ ...x, estilo: friendlyError(e) }))
+        })
+      return () => {
+        alive = false
+      }
+    }
     const exact = isValidEstilo(est) ? getProducto(est) : Promise.resolve(null)
     Promise.all([exact, debounced.length >= 2 ? suggestProductos(debounced) : []])
       .then(([p, sug]) => {
@@ -100,6 +122,12 @@ export default function RotuloPage({ params }) {
     setShowSug(false)
     setErrors((x) => ({ ...x, estilo: undefined }))
     setTimeout(() => fechaRef.current?.focus(), 0)
+  }
+
+  const onScanned = (p) => {
+    setScanOpen(false)
+    pick(p)
+    toast(`${p.estilo} · ${p.descripcion}`)
   }
 
   const data = {
@@ -186,7 +214,8 @@ export default function RotuloPage({ params }) {
         >
           {/* Estilo + sugerencias */}
           <Field label="Estilo (N°)" icon={Barcode} error={errors.estilo} hint={<LookupHint state={lookup} />}>
-            <div className="relative">
+            <div className="relative flex gap-2">
+              <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <input
                 value={estiloInput}
@@ -197,11 +226,23 @@ export default function RotuloPage({ params }) {
                 }}
                 onFocus={() => setShowSug(true)}
                 onBlur={() => setTimeout(() => setShowSug(false), 150)}
-                placeholder="Ej. 010247 o parte de la descripción"
+                placeholder="Ej. 010247, descripción o EAN"
                 className={cx(inputClass(errors.estilo), 'pl-9 font-mono text-base font-bold placeholder:font-sans placeholder:font-normal')}
                 autoComplete="off"
                 autoFocus={!params.estilo}
               />
+              </div>
+              <Button
+                variant="dark"
+                icon={ScanBarcode}
+                onClick={() => setScanOpen(true)}
+                disabled={!isSupabaseConfigured}
+                className="h-11 px-3"
+                aria-label="Escanear código de barras"
+                title="Escanear código de barras con la cámara"
+              >
+                <span className="hidden sm:inline">Escanear</span>
+              </Button>
               {showSug && suggestions.length > 0 && (
                 <ul className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-xl">
                   {suggestions.map((s) => (
@@ -230,7 +271,7 @@ export default function RotuloPage({ params }) {
                 producto ? 'border-emerald-200 bg-emerald-50 text-zinc-900' : 'border-dashed border-zinc-300 bg-zinc-50 font-medium normal-case text-zinc-400',
               )}
             >
-              {producto ? producto.descripcion : 'Escribe el estilo para traer la descripción.'}
+              {producto ? producto.descripcion : 'Escribe o escanea el código para traer la descripción.'}
             </div>
           </Field>
 
@@ -321,6 +362,8 @@ export default function RotuloPage({ params }) {
       </Card>
 
       <PrintableLabel layout={layout} />
+
+      <BarcodeScanner open={scanOpen} onClose={() => setScanOpen(false)} onLookup={getProductoByEan} onFound={onScanned} />
     </div>
   )
 }

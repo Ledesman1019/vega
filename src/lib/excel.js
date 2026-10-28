@@ -2,7 +2,7 @@
 //
 // Importar productos / exportar productos e historial con ExcelJS (se carga solo cuando se usa,
 // para que la app abra rápido).
-import { normalizeEstilo, isValidEstilo } from './api/productos.js'
+import { normalizeEstilo, isValidEstilo, normalizeEan, isValidEan } from './api/productos.js'
 
 const VEGA_RED = 'FFE20514'
 const VEGA_INK = 'FF16171A'
@@ -20,10 +20,17 @@ const norm = (s) =>
     .toLowerCase()
     .replace(/[^a-z0-9°º]/g, '')
 
+// Columna opcional de código de barras: "EAN", "EAN13", "Código de barras", "GTIN"…
+const isEanHeader = (h) => {
+  const n = norm(h)
+  return n.includes('ean') || n.includes('barra') || n.includes('gtin') || n === 'upc'
+}
+
 // Acepta nombres exactos (N°, Estilo, Código…) y compuestos como
 // "ProductoCodigo", "Código producto", "Estilo SAP" o "ProductoDescripcion".
 const isEstiloHeader = (h) => {
   const n = norm(h)
+  if (isEanHeader(h)) return false
   return (
     ['n', 'n°', 'nº', 'no', 'nro', 'numero', 'cod', 'sku', 'item'].includes(n) ||
     n.includes('codigo') ||
@@ -32,6 +39,7 @@ const isEstiloHeader = (h) => {
 }
 const isDescHeader = (h) => {
   const n = norm(h)
+  if (isEanHeader(h)) return false
   return n.includes('desc') || ['producto', 'nombre', 'articulo'].includes(n)
 }
 
@@ -96,9 +104,12 @@ async function readMatrix(file) {
 }
 
 /**
- * Lee un Excel/CSV y devuelve { rows: [{estilo, descripcion}], skipped, duplicated, total }.
- * Detecta las columnas por encabezado (N° / Estilo / Código y Descripción);
- * si no hay encabezado usa columna A = estilo, B = descripción.
+ * Lee un Excel/CSV y devuelve
+ * { rows: [{estilo, descripcion}], eans: [{ean, estilo}], skipped, duplicated, total }.
+ * Detecta las columnas por encabezado (N° / Estilo / Código, Descripción y,
+ * opcional, EAN / Código de barras); si no hay encabezado usa columna
+ * A = estilo, B = descripción. Un archivo con solo Estilo + EAN carga
+ * únicamente los códigos de barras.
  */
 export async function parseProductosFile(file) {
   const matrix = await readMatrix(file)
@@ -107,15 +118,35 @@ export async function parseProductosFile(file) {
   let headerIdx = -1
   let colEstilo = 0
   let colDesc = 1
+  let colEan = -1
   for (let i = 0; i < Math.min(matrix.length, 10); i++) {
     const r = matrix[i]
-    const e = r.findIndex(isEstiloHeader)
+    // Una columna llamada "Estilo" gana sobre las genéricas (SKU, Código…)
+    const exacta = r.findIndex((h) => norm(h).includes('estilo'))
+    const e = exacta !== -1 ? exacta : r.findIndex(isEstiloHeader)
     const d = r.findIndex(isDescHeader)
-    if (e !== -1 && d !== -1 && e !== d) {
+    const b = r.findIndex(isEanHeader)
+    if (e !== -1 && (d !== -1 || b !== -1)) {
       headerIdx = i
       colEstilo = e
       colDesc = d
+      colEan = b
       break
+    }
+  }
+
+  // Columna de código de barras con otro nombre (ej. "SKU"): se reconoce
+  // porque casi todos sus valores son números de 12 a 14 dígitos.
+  if (headerIdx !== -1 && colEan === -1) {
+    const muestra = matrix.slice(headerIdx + 1, headerIdx + 51)
+    const ancho = Math.max(...matrix[headerIdx].map((_, i) => i + 1), 0)
+    for (let c = 0; c < ancho; c++) {
+      if (c === colEstilo || c === colDesc) continue
+      const vals = muestra.map((r) => normalizeEan(r[c])).filter(Boolean)
+      if (vals.length && vals.filter((v) => /^\d{12,14}$/.test(v)).length >= vals.length * 0.8) {
+        colEan = c
+        break
+      }
     }
   }
 
@@ -128,25 +159,37 @@ export async function parseProductosFile(file) {
   }
 
   const map = new Map()
+  const eanMap = new Map()
   let skipped = 0
   let total = 0
+  let conDescripcion = 0
   for (let i = headerIdx + 1; i < matrix.length; i++) {
     const r = matrix[i]
     const rawE = r[colEstilo]
-    const rawD = r[colDesc]
-    if (!String(rawE ?? '').trim() && !String(rawD ?? '').trim()) continue
+    const rawD = colDesc !== -1 ? r[colDesc] : ''
+    const rawB = colEan !== -1 ? r[colEan] : ''
+    if (![rawE, rawD, rawB].some((v) => String(v ?? '').trim())) continue
     total++
     const estilo = normalizeEstilo(rawE)
     const descripcion = String(rawD ?? '').replace(/\s+/g, ' ').trim()
-    if (!isValidEstilo(estilo) || !descripcion) {
+    const ean = normalizeEan(rawB)
+    const okProducto = isValidEstilo(estilo) && !!descripcion
+    const okEan = isValidEstilo(estilo) && isValidEan(ean)
+    if (!okProducto && !okEan) {
       skipped++
       continue
     }
-    map.set(estilo, { estilo, descripcion })
+    if (okProducto) {
+      conDescripcion++
+      map.set(estilo, { estilo, descripcion })
+    }
+    if (okEan) eanMap.set(ean, { ean, estilo })
   }
 
   const rows = [...map.values()]
-  return { rows, skipped, duplicated: total - skipped - rows.length, total }
+  // Con columna EAN es normal que un estilo se repita (un código por fila)
+  const duplicated = colEan === -1 ? conDescripcion - rows.length : 0
+  return { rows, eans: [...eanMap.values()], skipped, duplicated, total }
 }
 
 /* =========================================================

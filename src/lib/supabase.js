@@ -21,6 +21,7 @@ export function friendlyError(error) {
   if (!isSupabaseConfigured) return 'Supabase no está configurado (.env).'
   if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return 'Sin conexión con el servidor. Revisa tu internet.'
   if (/exportar_productos/i.test(msg)) return 'Falta la función de exportar en Supabase. Ejecuta supabase/03_exportar_con_clave.sql.'
+  if (/importar_eans|productos_ean/i.test(msg)) return 'Falta la tabla de códigos de barras en Supabase. Ejecuta supabase/04_codigos_barras.sql.'
   if (error.code === 'PGRST202' || /importar_productos/i.test(msg)) return 'Falta la función de importar en Supabase. Ejecuta supabase/02_importar_con_clave.sql.'
   if (error.code === '42P01' || error.code === 'PGRST205' || /does not exist|schema cache/i.test(msg))
     return 'Faltan las tablas en Supabase. Ejecuta supabase/01_schema.sql en el SQL Editor.'

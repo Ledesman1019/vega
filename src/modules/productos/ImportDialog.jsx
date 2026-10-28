@@ -9,7 +9,7 @@ import { FileSpreadsheet, Upload, KeyRound, ScanSearch, CircleCheck } from 'luci
 import { Button, Field, Modal, inputClass } from '../../components/ui.jsx'
 import { useToast } from '../../components/Toast.jsx'
 import { friendlyError } from '../../lib/supabase.js'
-import { importarProductos } from '../../lib/api/productos.js'
+import { importarEans, importarProductos } from '../../lib/api/productos.js'
 import { parseProductosFile } from '../../lib/excel.js'
 
 const fmt = (n) => n.toLocaleString('es-PE')
@@ -47,7 +47,7 @@ export default function ImportDialog({ open, onClose, onDone }) {
     setBusy('leyendo')
     try {
       const result = await parseProductosFile(f)
-      if (!result.rows.length) throw new Error('No se encontraron productos válidos. El Excel debe tener una columna de código o estilo (ej. N°, ProductoCodigo) y otra de descripción.')
+      if (!result.rows.length && !result.eans.length) throw new Error('No se encontraron productos válidos. El Excel debe tener una columna de código o estilo (ej. N°, ProductoCodigo) y otra de descripción.')
       setParsed(result)
     } catch (e) {
       setError(e.message || String(e))
@@ -68,8 +68,13 @@ export default function ImportDialog({ open, onClose, onDone }) {
         aplicar,
         onProgress: (done, total) => setProgress(Math.round((done / total) * 100)),
       })
+      // Los códigos van después: necesitan que el producto ya exista
+      res.eans = parsed.eans.length ? await importarEans({ clave, codigos: parsed.eans, aplicar }) : null
       if (aplicar) {
-        toast(`Importación lista: ${fmt(res.nuevos)} nuevos y ${fmt(res.actualizados)} actualizados.`)
+        let msg = `Importación lista: ${fmt(res.nuevos)} nuevos y ${fmt(res.actualizados)} actualizados.`
+        if (res.eans) msg += ` Códigos de barras: ${fmt(res.eans.nuevos)} nuevos y ${fmt(res.eans.actualizados)} actualizados.`
+        if (res.eans?.sin_producto) msg += ` ${fmt(res.eans.sin_producto)} códigos omitidos (su estilo no existe).`
+        toast(msg, 'success', 8000)
         onDone()
         onClose()
       } else {
@@ -82,7 +87,9 @@ export default function ImportDialog({ open, onClose, onDone }) {
     }
   }
 
-  const cambios = preview ? preview.nuevos + preview.actualizados : 0
+  const cambios = preview
+    ? preview.nuevos + preview.actualizados + (preview.eans ? preview.eans.nuevos + preview.eans.actualizados : 0)
+    : 0
   const working = busy === 'revisando' || busy === 'importando'
 
   let action
@@ -154,6 +161,7 @@ export default function ImportDialog({ open, onClose, onDone }) {
       {parsed && (
         <p className="mt-3 text-center text-xs text-zinc-500">
           <b className="text-zinc-800">{fmt(parsed.rows.length)}</b> productos válidos en el archivo
+          {parsed.eans.length > 0 && <> · <b className="text-zinc-800">{fmt(parsed.eans.length)}</b> códigos de barras</>}
           {parsed.duplicated > 0 && <> · {fmt(parsed.duplicated)} repetidos dentro del Excel (se toma el último)</>}
           {parsed.skipped > 0 && <> · <span className="text-amber-600">{fmt(parsed.skipped)} filas omitidas (sin estilo o descripción)</span></>}
         </p>
@@ -187,6 +195,16 @@ export default function ImportDialog({ open, onClose, onDone }) {
             <Mini label="Se actualizan" value={preview.actualizados} tone="text-sky-600" />
             <Mini label="Sin cambios" value={preview.sin_cambios} tone="text-zinc-500" />
           </div>
+          {preview.eans && (
+            <>
+              <p className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wide text-zinc-500">Códigos de barras</p>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <Mini label="Nuevos" value={preview.eans.nuevos} tone="text-emerald-600" />
+                <Mini label="Se actualizan" value={preview.eans.actualizados} tone="text-sky-600" />
+                <Mini label="Sin cambios" value={preview.eans.sin_cambios} tone="text-zinc-500" />
+              </div>
+            </>
+          )}
           <p className="mt-3 rounded-lg bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-600">
             {cambios === 0
               ? 'La base ya está al día con este archivo: no hay nada que importar.'
