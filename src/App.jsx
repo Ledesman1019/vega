@@ -5,17 +5,22 @@ import { useRoute } from './lib/router.js'
 import ProductosPage from './modules/productos/ProductosPage.jsx'
 import RotuloPage from './modules/rotulo/RotuloPage.jsx'
 import HistorialPage from './modules/historial/HistorialPage.jsx'
+import AutomaticoPage from './modules/automatico/AutomaticoPage.jsx'
+import { NotificationProvider } from './components/Notifications.jsx'
 
 export default function App() {
   const route = useRoute()
 
   return (
     <ToastProvider>
-      <AppShell route={route.name}>
-        {route.name === 'productos' && <ProductosPage />}
-        {route.name === 'rotulo' && <RotuloPage params={route.params} />}
-        {route.name === 'historial' && <HistorialPage />}
-      </AppShell>
+      <NotificationProvider>
+        <AppShell route={route.name}>
+          {route.name === 'productos' && <ProductosPage />}
+          {route.name === 'rotulo' && <RotuloPage params={route.params} />}
+          {route.name === 'historial' && <HistorialPage />}
+          {route.name === 'automatico' && <AutomaticoPage />}
+        </AppShell>
+      </NotificationProvider>
     </ToastProvider>
   )
 }

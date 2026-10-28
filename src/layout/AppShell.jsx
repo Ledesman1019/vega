@@ -2,18 +2,22 @@
 //
 // Estructura tipo ERP:
 //  - PC/laptop: barra lateral oscura fija + barra superior con el título.
-//  - Teléfono: barra superior compacta + navegación inferior (3 módulos).
+//  - Teléfono: barra superior compacta + navegación inferior (4 módulos).
+//  Los módulos con admin: true piden la clave de administrador (candado).
 import { useEffect, useState } from 'react'
-import { Package, Tag, History, Download, Wifi, WifiOff, Database } from 'lucide-react'
+import { Package, Tag, History, Download, Wifi, WifiOff, Database, WandSparkles, Lock } from 'lucide-react'
 import { navigate } from '../lib/router.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
+import { useAdminUnlocked } from '../lib/api/admin.js'
 import { APP_VERSION } from '../version.js'
 import { cx } from '../components/ui.jsx'
+import { NotificationBell } from '../components/Notifications.jsx'
 
 export const MODULES = [
   { id: 'productos', label: 'Productos', short: 'Productos', icon: Package, desc: 'Base de productos · importar y exportar' },
   { id: 'rotulo', label: 'Crear rótulo', short: 'Rótulo', icon: Tag, desc: 'Genera, imprime o descarga el rótulo del pallet' },
   { id: 'historial', label: 'Historial de rótulos', short: 'Historial', icon: History, desc: 'Rótulos impresos y descargados' },
+  { id: 'automatico', label: 'Rótulo automático', short: 'Automático', icon: WandSparkles, desc: 'Solo administrador · protegido con clave', admin: true },
 ]
 
 function useOnline() {
@@ -54,6 +58,7 @@ export default function AppShell({ route, children }) {
   const online = useOnline()
   const { canInstall, install } = useInstallPrompt()
   const current = MODULES.find((m) => m.id === route) || MODULES[0]
+  const adminUnlocked = useAdminUnlocked()
 
   return (
     <div className="min-h-screen bg-zinc-100 font-sans text-zinc-900">
@@ -85,6 +90,7 @@ export default function AppShell({ route, children }) {
                   >
                     <m.icon className={cx('h-[18px] w-[18px]', active ? 'text-white' : 'text-zinc-400 group-hover:text-white')} />
                     {m.label}
+                    {m.admin && !adminUnlocked && <Lock className={cx('ml-auto h-3.5 w-3.5', active ? 'text-white/80' : 'text-zinc-500')} />}
                   </a>
                 </li>
               )
@@ -116,6 +122,7 @@ export default function AppShell({ route, children }) {
                   <Download className="h-3.5 w-3.5" /> Instalar
                 </button>
               )}
+              <NotificationBell dark />
               <span className={cx('h-2.5 w-2.5 rounded-full', online && isSupabaseConfigured ? 'bg-emerald-400' : 'bg-amber-400')} title={online ? 'En línea' : 'Sin conexión'} />
             </div>
           </div>
@@ -143,6 +150,7 @@ export default function AppShell({ route, children }) {
               <div className="flex h-9 items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm">
                 <StatusLine online={online} />
               </div>
+              <NotificationBell />
             </div>
           </div>
         </header>
@@ -159,7 +167,7 @@ export default function AppShell({ route, children }) {
 
       {/* ============ NAVEGACIÓN INFERIOR (teléfono) ============ */}
       <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-zinc-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
-        <ul className="mx-auto grid max-w-md grid-cols-3">
+        <ul className="mx-auto grid max-w-md grid-cols-4">
           {MODULES.map((m) => {
             const active = m.id === current.id
             return (
@@ -169,8 +177,9 @@ export default function AppShell({ route, children }) {
                   className={cx('relative flex w-full flex-col items-center gap-1 py-2.5 text-[11px] font-bold', active ? 'text-vega-red' : 'text-zinc-500')}
                 >
                   {active && <span className="absolute inset-x-6 top-0 h-[3px] rounded-b-full bg-vega-red" />}
-                  <span className={cx('flex h-8 w-12 items-center justify-center rounded-full transition-colors', active && 'bg-red-50')}>
+                  <span className={cx('relative flex h-8 w-12 items-center justify-center rounded-full transition-colors', active && 'bg-red-50')}>
                     <m.icon className="h-5 w-5" />
+                    {m.admin && !adminUnlocked && <Lock className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-white" />}
                   </span>
                   {m.short}
                 </button>

@@ -47,6 +47,17 @@ de 13 dígitos en el campo de estilo (sirve con lectoras USB/Bluetooth).
 
 La cámara solo funciona con `https://` (Vercel) o en `localhost`.
 
+## Rótulo automático (solo administrador)
+
+Módulo protegido con la misma clave de Importar Excel; el resto de módulos sigue libre.
+Ejecuta una vez `supabase/05_acceso_admin.sql` en Supabase > SQL Editor. La clave se
+vuelve a pedir al recargar la app o tras 30 minutos sin uso.
+
+## Notificaciones
+
+La campana de la barra superior guarda los avisos (con sonido, que se puede silenciar).
+Desde cualquier módulo: `useNotify()({ title, body, type })`.
+
 ## Instalar como app (PWA)
 
 - **En el teléfono (Android/Chrome):** aparecerá un aviso para "Instalar"; también puedes

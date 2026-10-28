@@ -4,7 +4,7 @@
 // Funciona en cualquier hosting y offline (PWA) sin configurar rutas.
 import { useEffect, useState } from 'react'
 
-export const ROUTES = ['productos', 'rotulo', 'historial']
+export const ROUTES = ['productos', 'rotulo', 'historial', 'automatico']
 export const DEFAULT_ROUTE = 'productos'
 
 function parse() {
