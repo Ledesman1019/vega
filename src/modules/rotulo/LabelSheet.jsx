@@ -40,8 +40,13 @@ export function LabelSvg({ layout, className = '', style }) {
   )
 }
 
-/** Copia del rótulo que SOLO aparece al imprimir (una hoja horizontal). */
-export function PrintableLabel({ layout }) {
+/**
+ * Copia del rótulo que SOLO aparece al imprimir (una hoja horizontal).
+ * Con `layouts` imprime varias hojas seguidas (todas del mismo papel).
+ */
+export function PrintableLabel({ layout: single, layouts }) {
+  const pages = layouts?.length ? layouts : [single]
+  const layout = pages[0]
   useEffect(() => {
     const id = 'label-page-style'
     let tag = document.getElementById(id)
@@ -56,8 +61,20 @@ export function PrintableLabel({ layout }) {
 
   return createPortal(
     <div className="print-area" aria-hidden="true">
-      {/* 0.6 mm menos de alto: evita que un redondeo genere una 2.ª hoja */}
-      <LabelSvg layout={layout} style={{ width: `${layout.width}mm`, height: `${layout.height - 0.6}mm`, display: 'block' }} />
+      {/* 0.6 mm menos de alto: evita que un redondeo genere una hoja extra */}
+      {pages.map((p, i) => (
+        <LabelSvg
+          key={i}
+          layout={p}
+          style={{
+            width: `${p.width}mm`,
+            height: `${p.height - 0.6}mm`,
+            display: 'block',
+            breakAfter: i < pages.length - 1 ? 'page' : 'auto',
+            pageBreakAfter: i < pages.length - 1 ? 'always' : 'auto',
+          }}
+        />
+      ))}
     </div>,
     document.body,
   )

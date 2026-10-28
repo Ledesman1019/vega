@@ -53,6 +53,19 @@ Módulo protegido con la misma clave de Importar Excel; el resto de módulos sig
 Ejecuta una vez `supabase/05_acceso_admin.sql` en Supabase > SQL Editor. La clave se
 vuelve a pedir al recargar la app o tras 30 minutos sin uso.
 
+Ejecuta también `supabase/06_rotulo_automatico.sql`. El módulo tiene tres pestañas:
+
+- **Paletizado:** factor (unidades por caja), cama y altura por producto. Total = cama × altura
+  (cajas por pallet); unidades por pallet = factor × total. Se importa por Excel o se escribe a mano.
+- **Ingresos:** "Insertar ingreso" (Excel con Código y Cantidad recibida en unidades, o manual).
+  El mismo código repetido se suma. Pallets completos = recibido ÷ unidades por pallet (entero):
+  se genera un rótulo por pallet completo con CANT. = cajas del pallet; el resto queda como saldo.
+  Se avisa en la campana de notificaciones.
+- **Rótulos pendientes:** se pone la fecha de vencimiento y se imprimen o descargan; cada hoja queda
+  en el Historial de rótulos.
+
+Todo el cálculo lo hace Supabase con números enteros (la vista previa y lo guardado son el mismo cálculo).
+
 ## Notificaciones
 
 La campana de la barra superior guarda los avisos (con sonido, que se puede silenciar).

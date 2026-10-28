@@ -3,12 +3,28 @@
 // Rótulo automático: módulo SOLO para el administrador. Se entra con la
 // misma clave de la importación (validada en Supabase, sin login). El
 // resto de módulos sigue libre para el personal de almacén.
-import { useEffect, useState } from 'react'
-import { KeyRound, Lock, LockKeyhole, LogIn, ShieldCheck, WandSparkles } from 'lucide-react'
-import { Button, Card, CardHeader, EmptyState, Field, inputClass } from '../../components/ui.jsx'
+//
+//  - Paletizado: factor × cama × altura por producto (Excel o manual).
+//  - Ingresos: cantidad recibida; por cada pallet completo se genera un
+//    rótulo automático (y se avisa en la campana).
+//  - Rótulos pendientes: se les pone la fecha de vencimiento y se imprimen.
+import { useCallback, useEffect, useState } from 'react'
+import { KeyRound, Layers, Lock, LockKeyhole, LogIn, PackagePlus, ShieldCheck, Tags } from 'lucide-react'
+import { Button, Card, Field, inputClass, cx } from '../../components/ui.jsx'
 import { useToast } from '../../components/Toast.jsx'
 import { friendlyError } from '../../lib/supabase.js'
 import { expireIfIdle, lockAdmin, touchAdmin, unlockAdmin, useAdminUnlocked } from '../../lib/api/admin.js'
+import { countPendientes } from '../../lib/api/automatico.js'
+import PendientesTab from './PendientesTab.jsx'
+import IngresosTab from './IngresosTab.jsx'
+import PaletizadoTab from './PaletizadoTab.jsx'
+
+const TAB_KEY = 'vega-rotulos:automatico-tab'
+const TABS = [
+  { id: 'pendientes', label: 'Rótulos pendientes', short: 'Pendientes', icon: Tags },
+  { id: 'ingresos', label: 'Ingresos', short: 'Ingresos', icon: PackagePlus },
+  { id: 'paletizado', label: 'Paletizado', short: 'Paletizado', icon: Layers },
+]
 
 export default function AutomaticoPage() {
   const unlocked = useAdminUnlocked()
@@ -28,26 +44,67 @@ export default function AutomaticoPage() {
   }, [unlocked])
 
   if (!unlocked) return <AdminGate />
+  return <AdminModule />
+}
+
+function AdminModule() {
+  const [tab, setTab] = useState(() => {
+    try {
+      return localStorage.getItem(TAB_KEY) || 'pendientes'
+    } catch {
+      return 'pendientes'
+    }
+  })
+  const [pendientes, setPendientes] = useState(null)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TAB_KEY, tab)
+    } catch { /* sin almacenamiento */ }
+  }, [tab])
+
+  const refreshCount = useCallback(() => {
+    countPendientes().then(setPendientes).catch(() => setPendientes(null))
+  }, [])
+  useEffect(refreshCount, [refreshCount])
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      <Card>
-        <CardHeader
-          icon={WandSparkles}
-          title="Rótulo automático"
-          subtitle="Modo administrador"
-          actions={
-            <Button size="sm" icon={Lock} onClick={lockAdmin}>
-              Bloquear
-            </Button>
-          }
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="grid flex-1 grid-cols-3 gap-1 rounded-xl border border-zinc-200 bg-white p-1 shadow-sm sm:flex-none">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cx(
+                'flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition-colors',
+                tab === t.id ? 'bg-vega-ink text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800',
+              )}
+            >
+              <t.icon className="hidden h-4 w-4 sm:block" />
+              <span className="sm:hidden">{t.short}</span>
+              <span className="hidden sm:inline">{t.label}</span>
+              {t.id === 'pendientes' && pendientes > 0 && (
+                <span className="rounded-full bg-vega-red px-1.5 text-[11px] font-extrabold leading-5 text-white">{pendientes}</span>
+              )}
+            </button>
+          ))}
+        </div>
+        <Button size="sm" icon={Lock} onClick={lockAdmin}>
+          Bloquear
+        </Button>
+      </div>
+
+      {tab === 'pendientes' && <PendientesTab onChange={refreshCount} />}
+      {tab === 'ingresos' && (
+        <IngresosTab
+          onGenerated={(rotulos) => {
+            refreshCount()
+            if (rotulos > 0) setTab('pendientes')
+          }}
         />
-        <EmptyState
-          icon={WandSparkles}
-          title="Módulo listo para configurar"
-          text="Aquí irá la operación del rótulo automático."
-        />
-      </Card>
+      )}
+      {tab === 'paletizado' && <PaletizadoTab />}
     </div>
   )
 }

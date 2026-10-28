@@ -80,7 +80,7 @@ function parseCsv(text) {
 async function readMatrix(file) {
   const name = file.name.toLowerCase()
   if (name.endsWith('.csv') || name.endsWith('.txt')) {
-    return parseCsv(await file.text())
+    return parseCsv(await file.text()).map((row, i) => Object.assign(row, { fila: i + 1 }))
   }
   if (name.endsWith('.xls')) {
     throw new Error('El formato .xls (Excel 97-2003) no es compatible. Ábrelo en Excel y guárdalo como .xlsx.')
@@ -98,7 +98,9 @@ async function readMatrix(file) {
       let t = cell.text != null && cell.text !== '' ? String(cell.text) : cellText(cell.value)
       values[col - 1] = t
     })
-    rows.push(values.map((v) => v ?? ''))
+    const row = values.map((v) => v ?? '')
+    row.fila = r.number // n.° de fila real en Excel (para avisar errores)
+    rows.push(row)
   })
   return rows
 }
@@ -190,6 +192,158 @@ export async function parseProductosFile(file) {
   // Con columna EAN es normal que un estilo se repita (un código por fila)
   const duplicated = colEan === -1 ? conDescripcion - rows.length : 0
   return { rows, eans: [...eanMap.values()], skipped, duplicated, total }
+}
+
+/* =========================================================
+   RÓTULO AUTOMÁTICO: paletizado e ingresos
+   ========================================================= */
+
+/**
+ * Entero positivo de una celda. Acepta "1920", "1,920", "1.920" y "1920.0".
+ * Devuelve null si la celda está vacía y NaN si no es un entero válido
+ * (decimales, texto, negativos): así nunca se redondea nada a escondidas.
+ */
+export function parseEntero(v) {
+  const s = String(v ?? '').trim().replace(/\s+/g, '')
+  if (!s) return null
+  let digits = null
+  if (/^\d+$/.test(s)) digits = s
+  else if (/^\d+[.,]0+$/.test(s)) digits = s.split(/[.,]/)[0]
+  else if (/^\d{1,3}(,\d{3})+$/.test(s) || /^\d{1,3}(\.\d{3})+$/.test(s)) digits = s.replace(/[.,]/g, '')
+  if (digits == null) return NaN
+  const n = Number(digits)
+  return Number.isSafeInteger(n) ? n : NaN
+}
+
+/**
+ * Busca (en las 10 primeras filas) la de encabezados con todas las
+ * columnas requeridas. detectors: { clave: (encabezado) => boolean }.
+ * Devuelve { headerIdx, cols: { clave: índice o -1 } } o null.
+ */
+function findHeader(matrix, detectors, required) {
+  for (let i = 0; i < Math.min(matrix.length, 10); i++) {
+    const r = matrix[i]
+    // Una columna llamada "Estilo" gana sobre las genéricas (Código, SKU…)
+    const hayEstilo = r.some((h) => norm(h).includes('estilo'))
+    const tests = {
+      estilo: (h) => (hayEstilo ? norm(h).includes('estilo') : isEstiloHeader(h)),
+      ...detectors,
+    }
+    const cols = {}
+    for (const [key, test] of Object.entries(tests)) {
+      cols[key] = r.findIndex((h, idx) => test(h) && !Object.values(cols).includes(idx))
+    }
+    if (required.every((k) => cols[k] !== -1)) return { headerIdx: i, cols }
+  }
+  return null
+}
+
+/**
+ * Tabla 1 (paletizado): Código/Estilo, Descripción (opcional), Factor,
+ * Cama, Altura y Total (opcional: si viene, se verifica que sea cama × altura).
+ * Devuelve { items, errores: [{fila, estilo, motivo}], repetidos, total }.
+ */
+export async function parsePaletizadoFile(file) {
+  const matrix = await readMatrix(file)
+  if (!matrix.length) throw new Error('El archivo está vacío.')
+
+  const found = findHeader(
+    matrix,
+    {
+      descripcion: isDescHeader,
+      factor: (h) => norm(h).startsWith('fact') || norm(h).includes('unidadesporcaja') || norm(h).includes('undxcaja'),
+      cama: (h) => norm(h).includes('cama'),
+      altura: (h) => norm(h).includes('altura') || norm(h) === 'alto' || norm(h).includes('nivel'),
+      total: (h) => norm(h).startsWith('total'),
+    },
+    ['estilo', 'factor', 'cama', 'altura'],
+  )
+  if (!found) {
+    throw new Error('No se encontraron los encabezados. El Excel debe tener las columnas: Código (o Estilo), Factor, Cama y Altura.')
+  }
+
+  const { headerIdx, cols } = found
+  const get = (r, k) => (cols[k] === -1 ? '' : r[cols[k]])
+  const map = new Map()
+  const errores = []
+  let total = 0
+  for (let i = headerIdx + 1; i < matrix.length; i++) {
+    const r = matrix[i]
+    if (!['estilo', 'factor', 'cama', 'altura'].some((k) => String(get(r, k) ?? '').trim())) continue
+    total++
+    const fila = r.fila ?? i + 1
+    const estilo = normalizeEstilo(get(r, 'estilo'))
+    const descripcion = String(get(r, 'descripcion') ?? '').replace(/\s+/g, ' ').trim()
+    const factor = parseEntero(get(r, 'factor'))
+    const cama = parseEntero(get(r, 'cama'))
+    const altura = parseEntero(get(r, 'altura'))
+    const totalExcel = parseEntero(get(r, 'total'))
+
+    let motivo = ''
+    if (!isValidEstilo(estilo)) motivo = 'Código vacío o no válido'
+    else if (!(factor >= 1 && factor <= 100000)) motivo = 'Factor vacío o no es un entero entre 1 y 100 000'
+    else if (!(cama >= 1 && cama <= 1000)) motivo = 'Cama vacía o no es un entero entre 1 y 1 000'
+    else if (!(altura >= 1 && altura <= 1000)) motivo = 'Altura vacía o no es un entero entre 1 y 1 000'
+    else if (totalExcel != null && totalExcel !== cama * altura)
+      motivo = `El total del Excel (${totalExcel}) no es cama × altura (${cama} × ${altura} = ${cama * altura})`
+    if (motivo) {
+      errores.push({ fila, estilo: estilo || String(get(r, 'estilo') ?? ''), motivo })
+      continue
+    }
+    map.set(estilo, { estilo, descripcion, factor, cama, altura })
+  }
+
+  const items = [...map.values()]
+  return { items, errores, repetidos: total - errores.length - items.length, total }
+}
+
+/**
+ * Tabla 2 (ingreso): Código/Estilo, Descripción (opcional) y Cantidad
+ * recibida en UNIDADES. Las filas sin cantidad se ignoran; el mismo
+ * estilo repetido se suma (lo hace Supabase al calcular).
+ * Devuelve { items: [{estilo, cantidad}], errores, vacias, total }.
+ */
+export async function parseIngresoFile(file) {
+  const matrix = await readMatrix(file)
+  if (!matrix.length) throw new Error('El archivo está vacío.')
+
+  const isCantidad = (h) => {
+    const n = norm(h)
+    return n.includes('cant') || n.includes('recib') || n.includes('unidades') || n === 'qty'
+  }
+  const found = findHeader(matrix, { cantidad: isCantidad }, ['estilo', 'cantidad'])
+  if (!found) {
+    throw new Error('No se encontraron los encabezados. El Excel debe tener las columnas: Código (o Estilo) y Cantidad recibida.')
+  }
+
+  const { headerIdx, cols } = found
+  const items = []
+  const errores = []
+  let vacias = 0
+  let total = 0
+  for (let i = headerIdx + 1; i < matrix.length; i++) {
+    const r = matrix[i]
+    const rawE = String(r[cols.estilo] ?? '').trim()
+    const rawC = r[cols.cantidad]
+    if (!rawE && !String(rawC ?? '').trim()) continue
+    total++
+    const fila = r.fila ?? i + 1
+    const estilo = normalizeEstilo(rawE)
+    const cantidad = parseEntero(rawC)
+    if (cantidad === null) {
+      vacias++
+      continue
+    }
+    let motivo = ''
+    if (!isValidEstilo(estilo)) motivo = 'Código vacío o no válido'
+    else if (!(cantidad >= 1)) motivo = `Cantidad "${String(rawC).trim()}" no es un entero positivo`
+    if (motivo) {
+      errores.push({ fila, estilo: estilo || rawE, motivo })
+      continue
+    }
+    items.push({ estilo, cantidad })
+  }
+  return { items, errores, vacias, total }
 }
 
 /* =========================================================
