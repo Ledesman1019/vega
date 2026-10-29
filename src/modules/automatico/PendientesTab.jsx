@@ -5,11 +5,11 @@
 // imprimen todas las hojas del grupo de una vez (o se descarga el PDF).
 // Cada hoja queda registrada en el Historial de rótulos.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Ban, CalendarDays, FileDown, Printer, RotateCcw, Tags } from 'lucide-react'
+import { Ban, CalendarDays, FileDown, Printer, RotateCcw, Tags, Timer } from 'lucide-react'
 import { Button, Card, CardHeader, EmptyState, ErrorBanner, Spinner, inputClass, cx } from '../../components/ui.jsx'
 import { useToast } from '../../components/Toast.jsx'
 import { friendlyError } from '../../lib/supabase.js'
-import { actualizarRotulosAuto, listRotulosAuto } from '../../lib/api/automatico.js'
+import { VIDA_ROTULO_MS, actualizarRotulosAuto, listRotulosAuto } from '../../lib/api/automatico.js'
 import { registrarRotulo } from '../../lib/api/historial.js'
 import { PAPERS, computeLabelLayout, loadLabelFont } from '../../lib/label/layout.js'
 import { buildLabelPdf } from '../../lib/label/pdf.js'
@@ -18,6 +18,16 @@ import { LabelSvg, PrintableLabel } from '../rotulo/LabelSheet.jsx'
 import { fmt } from './PaletizadoTab.jsx'
 
 const PAPER_KEY = 'vega-rotulos:papel' // el mismo papel que Crear rótulo
+
+// Un color por ingreso (clases completas para que Tailwind las incluya)
+const COLORS = [
+  { border: 'border-l-sky-500', head: 'bg-sky-50 text-sky-900', chip: 'bg-sky-600' },
+  { border: 'border-l-violet-500', head: 'bg-violet-50 text-violet-900', chip: 'bg-violet-600' },
+  { border: 'border-l-amber-500', head: 'bg-amber-50 text-amber-900', chip: 'bg-amber-600' },
+  { border: 'border-l-emerald-500', head: 'bg-emerald-50 text-emerald-900', chip: 'bg-emerald-600' },
+  { border: 'border-l-rose-500', head: 'bg-rose-50 text-rose-900', chip: 'bg-rose-600' },
+  { border: 'border-l-teal-500', head: 'bg-teal-50 text-teal-900', chip: 'bg-teal-600' },
+]
 
 export default function PendientesTab({ onChange }) {
   const toast = useToast()
@@ -68,6 +78,41 @@ export default function PendientesTab({ onChange }) {
     }
     return [...map.values()].map((g) => ({ ...g, items: g.items.sort((a, b) => a.pallet_num - b.pallet_num) }))
   }, [rows])
+
+  // Secciones por ingreso (todos sus rótulos tienen el mismo created_at),
+  // cada una con su color para distinguirlas de un vistazo
+  const sections = useMemo(() => {
+    const map = new Map()
+    for (const g of groups) {
+      if (!map.has(g.created_at)) {
+        map.set(g.created_at, {
+          key: g.created_at,
+          created_at: g.created_at,
+          ingreso_id: g.ingreso_id,
+          ingreso_num: g.ingreso_num,
+          ingreso_nota: g.ingreso_nota,
+          colorIdx: Number(g.ingreso_num ?? map.size),
+          groups: [],
+        })
+      }
+      map.get(g.created_at).groups.push(g)
+    }
+    return [...map.values()]
+  }, [groups])
+
+  // Reloj para la cuenta regresiva; al vencer un ingreso se recarga la lista
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30 * 1000)
+    return () => clearInterval(t)
+  }, [])
+  const vencido = sections.some((s) => new Date(s.created_at).getTime() + VIDA_ROTULO_MS <= now)
+  useEffect(() => {
+    if (vencido) {
+      load()
+      onChange()
+    }
+  }, [vencido, load, onChange])
 
   const fechaDe = (g) => fechas[g.key] ?? g.items[0].fecha_vencimiento ?? ''
 
@@ -206,12 +251,37 @@ export default function PendientesTab({ onChange }) {
         />
       )}
 
-      {!loading && groups.length > 0 && (
+      {!loading && sections.length > 0 && (
+        <div className="space-y-4 p-3 sm:p-4">
+          {sections.map((s) => {
+            const color = COLORS[s.colorIdx % COLORS.length]
+            const { fecha: creado, hora } = formatFechaHora(s.created_at)
+            const quedan = Math.max(0, Math.ceil((new Date(s.created_at).getTime() + VIDA_ROTULO_MS - now) / 60000))
+            const total = s.groups.reduce((acc, g) => acc + g.items.length, 0)
+            return (
+              <section key={s.key} className={cx('overflow-hidden rounded-xl border border-l-[6px] bg-white', color.border)}>
+                <header className={cx('flex flex-wrap items-center justify-between gap-2 px-4 py-2.5', color.head)}>
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-extrabold">
+                    <span className={cx('rounded-md px-2 py-0.5 text-xs text-white', color.chip)}>
+                      {s.ingreso_num ? `Ingreso #${s.ingreso_num}` : 'Ingreso'}
+                    </span>
+                    <span className="font-semibold">
+                      {creado} {hora}
+                    </span>
+                    {s.ingreso_nota && <span className="font-medium opacity-80">· {s.ingreso_nota}</span>}
+                    {!s.ingreso_id && <span className="text-xs font-medium opacity-70">(ingreso eliminado)</span>}
+                  </p>
+                  <p className="flex items-center gap-3 text-xs font-semibold">
+                    <span>{total === 1 ? '1 rótulo' : `${total} rótulos`}</span>
+                    <span className={cx('flex items-center gap-1', quedan <= 10 ? 'text-red-600' : 'opacity-80')}>
+                      <Timer className="h-3.5 w-3.5" /> Se elimina en {quedan} min
+                    </span>
+                  </p>
+                </header>
         <ul className="divide-y divide-zinc-100">
-          {groups.map((g) => {
+          {s.groups.map((g) => {
             const fecha = fechaDe(g)
             const n = g.items.length
-            const { fecha: creado, hora } = formatFechaHora(g.created_at)
             return (
               <li key={g.key} className="grid gap-4 px-4 py-4 sm:px-5 md:grid-cols-[260px_minmax(0,1fr)]">
                 <div className="rounded-md bg-zinc-200/70 p-2">
@@ -230,8 +300,8 @@ export default function PendientesTab({ onChange }) {
                     </p>
                     <p className="text-sm font-semibold uppercase text-zinc-800">{g.descripcion}</p>
                     <p className="mt-0.5 text-xs text-zinc-500">
-                      {fmt(g.unidades)} und. por pallet · {g.ingreso_id ? `Ingreso #${g.ingreso_id}` : 'Ingreso eliminado'} · {creado} {hora}
-                      {estado === 'impreso' && g.impreso_at && <> · Impreso {formatFechaHora(g.impreso_at).fecha}</>}
+                      {fmt(g.unidades)} und. por pallet
+                      {estado === 'impreso' && g.impreso_at && <> · Impreso {formatFechaHora(g.impreso_at).hora}</>}
                     </p>
                   </div>
 
@@ -293,6 +363,10 @@ export default function PendientesTab({ onChange }) {
             )
           })}
         </ul>
+              </section>
+            )
+          })}
+        </div>
       )}
 
       {printPages && <PrintableLabel layouts={printPages} />}

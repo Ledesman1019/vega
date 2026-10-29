@@ -4,20 +4,19 @@
 // nivel) y altura (niveles). Total = cama × altura (cajas por pallet) y
 // unidades por pallet = factor × total. Se carga por Excel o a mano.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Calculator, FileSpreadsheet, Layers, Pencil, Plus, ScanSearch, Search, Trash2, Upload, CircleCheck, KeyRound } from 'lucide-react'
+import { Calculator, FileSpreadsheet, Layers, Pencil, Plus, ScanSearch, Search, Upload, CircleCheck, KeyRound } from 'lucide-react'
 import { Button, Card, CardHeader, EmptyState, ErrorBanner, Field, Modal, Pagination, Spinner, inputClass, cx } from '../../components/ui.jsx'
 import { useToast } from '../../components/Toast.jsx'
 import { useDebounce } from '../../hooks/useDebounce.js'
 import { friendlyError } from '../../lib/supabase.js'
 import { getProducto, isValidEstilo, normalizeEstilo } from '../../lib/api/productos.js'
-import { borrarPaletizado, getPaletizado, guardarPaletizado, listPaletizado } from '../../lib/api/automatico.js'
+import { getPaletizado, guardarPaletizado, listPaletizado } from '../../lib/api/automatico.js'
 import { parseEntero, parsePaletizadoFile } from '../../lib/excel.js'
 
 export const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString('es-PE'))
 const PAGE_SIZE = 50
 
 export default function PaletizadoTab() {
-  const toast = useToast()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [data, setData] = useState({ rows: [], count: 0 })
@@ -37,17 +36,6 @@ export default function PaletizadoTab() {
   }, [debounced, page])
   useEffect(load, [load])
   useEffect(() => setPage(0), [debounced])
-
-  const remove = async (row) => {
-    if (!window.confirm(`¿Quitar el paletizado de ${row.estilo} · ${row.descripcion}?`)) return
-    try {
-      await borrarPaletizado(row.estilo)
-      toast(`Paletizado de ${row.estilo} eliminado.`)
-      load()
-    } catch (e) {
-      toast(friendlyError(e), 'error')
-    }
-  }
 
   return (
     <Card>
@@ -124,9 +112,6 @@ export default function PaletizadoTab() {
                     <div className="flex justify-end gap-1">
                       <button onClick={() => setEditing(r)} className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-800" aria-label="Editar" title="Editar">
                         <Pencil className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => remove(r)} className="rounded-md p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600" aria-label="Quitar" title="Quitar">
-                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </td>

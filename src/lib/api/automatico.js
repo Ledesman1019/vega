@@ -59,8 +59,6 @@ export async function guardarPaletizado({ items, aplicar, onProgress }) {
   return total
 }
 
-export const borrarPaletizado = (estilo) => rpc('borrar_paletizado', { p_estilo: estilo })
-
 /* ---------- Ingresos ---------- */
 
 /**
@@ -98,13 +96,29 @@ export const eliminarIngreso = (id) => rpc('eliminar_ingreso', { p_id: id })
 
 /* ---------- Rótulos automáticos ---------- */
 
+// Cada rótulo automático vive 1 hora (luego Supabase lo borra: ver
+// supabase/09_rotulos_auto_1hora.sql). La app nunca muestra los vencidos.
+export const VIDA_ROTULO_MS = 60 * 60 * 1000
+const limiteVida = () => new Date(Date.now() - VIDA_ROTULO_MS).toISOString()
+
+/** Borra los rótulos con más de 1 hora (no exige clave; no bloquea si falla). */
+async function purgarVencidos() {
+  try {
+    await requireSupabase().rpc('purgar_rotulos_auto')
+  } catch {
+    /* la lista igual filtra por hora */
+  }
+}
+
 export async function listRotulosAuto({ estado = 'pendiente', limit = 500 }) {
+  await purgarVencidos()
   const sb = requireSupabase()
   const { data, error } = await sb
     .from('rotulos_automaticos')
     .select('*')
     .eq('estado', estado)
-    .order(estado === 'impreso' ? 'impreso_at' : 'created_at', { ascending: false })
+    .gt('created_at', limiteVida())
+    .order('created_at', { ascending: false })
     .order('estilo')
     .order('pallet_num')
     .limit(limit)
@@ -118,6 +132,7 @@ export async function countPendientes() {
     .from('rotulos_automaticos')
     .select('id', { count: 'exact', head: true })
     .eq('estado', 'pendiente')
+    .gt('created_at', limiteVida())
   if (error) throw error
   return count ?? 0
 }
