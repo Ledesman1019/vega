@@ -94,6 +94,12 @@ async function readMatrix(file) {
   ws.eachRow({ includeEmpty: false }, (r) => {
     const values = []
     r.eachCell({ includeEmpty: true }, (cell, col) => {
+      const raw = cell.value && typeof cell.value === 'object' && 'result' in cell.value ? cell.value.result : cell.value
+      // Fechas reales de Excel -> YYYY-MM-DD (ExcelJS las guarda en UTC)
+      if (raw instanceof Date) {
+        values[col - 1] = Number.isNaN(raw.getTime()) ? '' : raw.toISOString().slice(0, 10)
+        return
+      }
       // Respeta el formato de la celda (ej. "000000" -> 010247)
       let t = cell.text != null && cell.text !== '' ? String(cell.text) : cellText(cell.value)
       values[col - 1] = t
@@ -210,9 +216,34 @@ export function parseEntero(v) {
   if (/^\d+$/.test(s)) digits = s
   else if (/^\d+[.,]0+$/.test(s)) digits = s.split(/[.,]/)[0]
   else if (/^\d{1,3}(,\d{3})+$/.test(s) || /^\d{1,3}(\.\d{3})+$/.test(s)) digits = s.replace(/[.,]/g, '')
+  // Con miles y decimales en cero: "1,080.00" o "1.080,00"
+  else if (/^\d{1,3}(,\d{3})+\.0+$/.test(s)) digits = s.split('.')[0].replace(/,/g, '')
+  else if (/^\d{1,3}(\.\d{3})+,0+$/.test(s)) digits = s.split(',')[0].replace(/\./g, '')
   if (digits == null) return NaN
   const n = Number(digits)
   return Number.isSafeInteger(n) ? n : NaN
+}
+
+/**
+ * Fecha de una celda -> 'YYYY-MM-DD'. Acepta fecha de Excel, "19/05/2030",
+ * "1/06/2030", "2030-05-19" y número de serie de Excel (47257).
+ * Devuelve null si la celda está vacía y false si no es una fecha real
+ * (ej. 31/02/2030): nunca se corrige una fecha a escondidas.
+ */
+export function parseFecha(v) {
+  const s = String(v ?? '').trim()
+  if (!s) return null
+  let y, m, d, mt
+  if ((mt = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) [, y, m, d] = mt
+  else if ((mt = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/))) [, d, m, y] = mt // día/mes/año (Perú)
+  else if (/^\d{5}(\.0+)?$/.test(s)) {
+    // Número de serie de Excel: días desde el 30/12/1899
+    const dt = new Date(Date.UTC(1899, 11, 30) + Math.trunc(Number(s)) * 86400000)
+    return dt.toISOString().slice(0, 10)
+  } else return false
+  const dt = new Date(Date.UTC(+y, +m - 1, +d))
+  if (dt.getUTCFullYear() !== +y || dt.getUTCMonth() !== +m - 1 || dt.getUTCDate() !== +d) return false
+  return dt.toISOString().slice(0, 10)
 }
 
 /**
@@ -298,10 +329,10 @@ export async function parsePaletizadoFile(file) {
 }
 
 /**
- * Tabla 2 (ingreso): Código/Estilo, Descripción (opcional) y Cantidad
- * recibida en UNIDADES. Las filas sin cantidad se ignoran; el mismo
- * estilo repetido se suma (lo hace Supabase al calcular).
- * Devuelve { items: [{estilo, cantidad}], errores, vacias, total }.
+ * Tabla 2 (ingreso): Código/Estilo, Descripción (opcional), Cantidad
+ * recibida en UNIDADES y Fecha de vencimiento (opcional). Las filas sin
+ * cantidad se ignoran; el mismo estilo repetido se suma (lo hace Supabase).
+ * Devuelve { items: [{fila, estilo, descripcion, cantidad, fecha}], errores, vacias, total }.
  */
 export async function parseIngresoFile(file) {
   const matrix = await readMatrix(file)
@@ -311,7 +342,11 @@ export async function parseIngresoFile(file) {
     const n = norm(h)
     return n.includes('cant') || n.includes('recib') || n.includes('unidades') || n === 'qty'
   }
-  const found = findHeader(matrix, { cantidad: isCantidad }, ['estilo', 'cantidad'])
+  const isFecha = (h) => {
+    const n = norm(h)
+    return n.includes('fecha') || n.includes('venc') || n === 'fv'
+  }
+  const found = findHeader(matrix, { cantidad: isCantidad, descripcion: isDescHeader, fecha: isFecha }, ['estilo', 'cantidad'])
   if (!found) {
     throw new Error('No se encontraron los encabezados. El Excel debe tener las columnas: Código (o Estilo) y Cantidad recibida.')
   }
@@ -334,14 +369,18 @@ export async function parseIngresoFile(file) {
       vacias++
       continue
     }
+    const rawF = cols.fecha === -1 ? '' : r[cols.fecha]
+    const fecha = parseFecha(rawF)
+    const descripcion = cols.descripcion === -1 ? '' : String(r[cols.descripcion] ?? '').replace(/\s+/g, ' ').trim()
     let motivo = ''
     if (!isValidEstilo(estilo)) motivo = 'Código vacío o no válido'
     else if (!(cantidad >= 1)) motivo = `Cantidad "${String(rawC).trim()}" no es un entero positivo`
+    else if (fecha === false) motivo = `Fecha "${String(rawF).trim()}" no es una fecha válida (día/mes/año)`
     if (motivo) {
       errores.push({ fila, estilo: estilo || rawE, motivo })
       continue
     }
-    items.push({ estilo, cantidad })
+    items.push({ fila, estilo, descripcion, cantidad, fecha })
   }
   return { items, errores, vacias, total }
 }

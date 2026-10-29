@@ -81,6 +81,21 @@ export async function listIngresos({ page = 0, pageSize = 20 }) {
   return { rows: data || [], count: count ?? 0 }
 }
 
+/** Filas del Excel de un ingreso (estilo, descripción, cantidad, FV). */
+export async function listIngresoDetalle(ingresoId) {
+  const sb = requireSupabase()
+  const { data, error } = await sb
+    .from('ingresos_detalle')
+    .select('*')
+    .eq('ingreso_id', ingresoId)
+    .order('id')
+  if (error) throw error
+  return data || []
+}
+
+/** Borra el ingreso y su detalle. Los rótulos ya generados se conservan. */
+export const eliminarIngreso = (id) => rpc('eliminar_ingreso', { p_id: id })
+
 /* ---------- Rótulos automáticos ---------- */
 
 export async function listRotulosAuto({ estado = 'pendiente', limit = 500 }) {

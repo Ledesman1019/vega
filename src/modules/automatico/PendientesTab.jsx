@@ -56,11 +56,13 @@ export default function PendientesTab({ onChange }) {
   }, [estado])
   useEffect(load, [load])
 
-  // Un grupo = mismo ingreso y mismo producto (sus pallets 1..N)
+  // Un grupo = mismo ingreso y mismo producto (sus pallets 1..N). Se usa
+  // created_at (igual para todo el ingreso) porque el ingreso puede haberse
+  // eliminado (ingreso_id vacío) y los rótulos siguen aquí.
   const groups = useMemo(() => {
     const map = new Map()
     for (const r of rows) {
-      const key = `${r.ingreso_id}-${r.estilo}`
+      const key = `${r.created_at}-${r.estilo}`
       if (!map.has(key)) map.set(key, { key, ...r, items: [] })
       map.get(key).items.push(r)
     }
@@ -228,7 +230,7 @@ export default function PendientesTab({ onChange }) {
                     </p>
                     <p className="text-sm font-semibold uppercase text-zinc-800">{g.descripcion}</p>
                     <p className="mt-0.5 text-xs text-zinc-500">
-                      {fmt(g.unidades)} und. por pallet · Ingreso #{g.ingreso_id} · {creado} {hora}
+                      {fmt(g.unidades)} und. por pallet · {g.ingreso_id ? `Ingreso #${g.ingreso_id}` : 'Ingreso eliminado'} · {creado} {hora}
                       {estado === 'impreso' && g.impreso_at && <> · Impreso {formatFechaHora(g.impreso_at).fecha}</>}
                     </p>
                   </div>

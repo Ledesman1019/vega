@@ -21,6 +21,8 @@ export function friendlyError(error) {
   if (!isSupabaseConfigured) return 'Supabase no está configurado (.env).'
   if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return 'Sin conexión con el servidor. Revisa tu internet.'
   if (/exportar_productos/i.test(msg)) return 'Falta la función de exportar en Supabase. Ejecuta supabase/03_exportar_con_clave.sql.'
+  if (['PGRST202', 'PGRST205', '42P01', '42883'].includes(error.code) && /ingresos_detalle|eliminar_ingreso|fecha_segura/i.test(msg))
+    return 'Falta actualizar Supabase. Ejecuta supabase/07_ingresos_detalle.sql.'
   if (['PGRST202', 'PGRST205', '42P01', '42883'].includes(error.code) && /paletizado|registrar_ingreso|rotulos_auto|exigir_clave|ingresos/i.test(msg))
     return 'Faltan las tablas del rótulo automático en Supabase. Ejecuta supabase/06_rotulo_automatico.sql.'
   if (/verificar_clave/i.test(msg)) return 'Falta la función de acceso en Supabase. Ejecuta supabase/05_acceso_admin.sql.'

@@ -13,9 +13,9 @@ import { useToast } from '../../components/Toast.jsx'
 import { useNotify } from '../../components/Notifications.jsx'
 import { friendlyError } from '../../lib/supabase.js'
 import { isValidEstilo, normalizeEstilo } from '../../lib/api/productos.js'
-import { listIngresos, registrarIngreso } from '../../lib/api/automatico.js'
+import { eliminarIngreso, listIngresoDetalle, listIngresos, registrarIngreso } from '../../lib/api/automatico.js'
 import { parseEntero, parseIngresoFile } from '../../lib/excel.js'
-import { formatFechaHora } from '../../utils/dateUtils.js'
+import { formatFecha, formatFechaHora } from '../../utils/dateUtils.js'
 import { ErroresList, FileDrop, Mini, fmt } from './PaletizadoTab.jsx'
 
 const PAGE_SIZE = 20
@@ -27,6 +27,8 @@ export default function IngresosTab({ onGenerated }) {
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(null)
+  const [deleting, setDeleting] = useState(null)
+  const toast = useToast()
 
   const load = useCallback(() => {
     setLoading(true)
@@ -37,6 +39,25 @@ export default function IngresosTab({ onGenerated }) {
       .finally(() => setLoading(false))
   }, [page])
   useEffect(load, [load])
+
+  const eliminar = async (ing) => {
+    const msg =
+      `¿Eliminar el ingreso #${ing.id} con sus ${fmt(ing.productos)} productos?\n\n` +
+      'Los rótulos que ya generó NO se borran: siguen en Pendientes / Impresos.'
+    if (!window.confirm(msg)) return
+    setDeleting(ing.id)
+    try {
+      await eliminarIngreso(ing.id)
+      toast(`Ingreso #${ing.id} eliminado.`)
+      if (expanded === ing.id) setExpanded(null)
+      if (data.rows.length === 1 && page > 0) setPage(page - 1)
+      else load()
+    } catch (e) {
+      toast(friendlyError(e), 'error')
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   return (
     <Card>
@@ -73,23 +94,36 @@ export default function IngresosTab({ onGenerated }) {
             const isOpen = expanded === ing.id
             return (
               <li key={ing.id}>
-                <button
-                  onClick={() => setExpanded(isOpen ? null : ing.id)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-zinc-50 sm:px-5"
-                >
-                  {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-zinc-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400" />}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-zinc-900">
-                      Ingreso #{ing.id} <span className="font-medium text-zinc-500">· {fecha} {hora}</span>
-                    </p>
-                    {ing.nota && <p className="truncate text-xs text-zinc-500">{ing.nota}</p>}
-                  </div>
-                  <span className="hidden text-xs text-zinc-500 sm:block">{fmt(ing.productos)} productos</span>
-                  <Badge tone={ing.rotulos ? 'green' : 'zinc'}>{fmt(ing.rotulos)} rótulos</Badge>
-                </button>
+                <div className="flex items-center gap-2 pr-3 hover:bg-zinc-50 sm:pr-4">
+                  <button
+                    onClick={() => setExpanded(isOpen ? null : ing.id)}
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 text-left sm:pl-5"
+                  >
+                    {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-zinc-400" /> : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-zinc-900">
+                        Ingreso #{ing.id} <span className="font-medium text-zinc-500">· {fecha} {hora}</span>
+                      </p>
+                      {ing.nota && <p className="truncate text-xs text-zinc-500">{ing.nota}</p>}
+                    </div>
+                    <span className="hidden text-xs text-zinc-500 sm:block">{fmt(ing.productos)} productos</span>
+                    <Badge tone={ing.rotulos ? 'green' : 'zinc'}>{fmt(ing.rotulos)} rótulos</Badge>
+                  </button>
+                  <button
+                    onClick={() => eliminar(ing)}
+                    disabled={deleting === ing.id}
+                    className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs font-bold text-zinc-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    title="Eliminar ingreso"
+                  >
+                    {deleting === ing.id ? <Spinner className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+                    <span className="hidden sm:inline">Eliminar</span>
+                  </button>
+                </div>
                 {isOpen && (
-                  <div className="border-t border-zinc-100 bg-zinc-50/60 px-2 py-3 sm:px-4">
+                  <div className="space-y-3 border-t border-zinc-100 bg-zinc-50/60 px-2 py-3 sm:px-4">
+                    <p className="px-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">Cálculo por producto</p>
                     <ResultadoTable detalle={ing.detalle} />
+                    <IngresoFilas ingresoId={ing.id} />
                   </div>
                 )}
               </li>
@@ -113,7 +147,7 @@ export default function IngresosTab({ onGenerated }) {
 }
 
 /* ---------- Insertar ingreso ---------- */
-const emptyRow = () => ({ id: Math.random().toString(36).slice(2), estilo: '', cantidad: '' })
+const emptyRow = () => ({ id: Math.random().toString(36).slice(2), estilo: '', cantidad: '', fecha: '' })
 
 function IngresoDialog({ open, onClose, onDone }) {
   const toast = useToast()
@@ -150,7 +184,7 @@ function IngresoDialog({ open, onClose, onDone }) {
       const cantidad = parseEntero(r.cantidad)
       if (!isValidEstilo(estilo)) errores.push({ fila: i + 1, estilo: r.estilo, motivo: 'Código vacío o no válido' })
       else if (!(cantidad >= 1)) errores.push({ fila: i + 1, estilo, motivo: 'Cantidad vacía o no es un entero positivo' })
-      else items.push({ estilo, cantidad })
+      else items.push({ fila: i + 1, estilo, descripcion: '', cantidad, fecha: r.fecha || null })
     })
     return { items, errores }
   })()
@@ -294,7 +328,7 @@ function IngresoDialog({ open, onClose, onDone }) {
                 onFile={pick}
                 label="Elige o arrastra el Excel del ingreso"
               />
-              <p className="mt-2 text-center text-xs text-zinc-500">Columnas: Código (ProductoCodigo) y Cantidad recibida. La descripción es opcional.</p>
+              <p className="mt-2 text-center text-xs text-zinc-500">Columnas: Estilo, Descripción, Cantidad (unidades) y Fecha de vencimiento. Descripción y fecha son opcionales.</p>
               {parsed && (
                 <p className="mt-3 text-center text-xs text-zinc-500">
                   <b className="text-zinc-800">{fmt(parsed.items.length)}</b> filas con cantidad
@@ -305,13 +339,14 @@ function IngresoDialog({ open, onClose, onDone }) {
             </>
           ) : (
             <div className="space-y-2">
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_36px] gap-2 px-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_36px] gap-2 px-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
                 <span>Código</span>
-                <span>Cantidad recibida (und.)</span>
+                <span>Cantidad (und.)</span>
+                <span>Vencimiento</span>
                 <span />
               </div>
               {rows.map((r, i) => (
-                <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_36px] gap-2">
+                <div key={r.id} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_36px] gap-2">
                   <input
                     value={r.estilo}
                     onChange={(e) => setRows((list) => list.map((x) => (x.id === r.id ? { ...x, estilo: e.target.value } : x)))}
@@ -331,6 +366,12 @@ function IngresoDialog({ open, onClose, onDone }) {
                     inputMode="numeric"
                     className={cx(inputClass(), 'font-bold tabular-nums')}
                     placeholder="1920"
+                  />
+                  <input
+                    type="date"
+                    value={r.fecha}
+                    onChange={(e) => setRows((list) => list.map((x) => (x.id === r.id ? { ...x, fecha: e.target.value } : x)))}
+                    className={cx(inputClass(), 'px-2 text-sm')}
                   />
                   <button
                     type="button"
@@ -399,6 +440,7 @@ export function ResultadoTable({ detalle }) {
           <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-[11px] font-bold uppercase tracking-wide text-zinc-500">
             <th className="px-3 py-2">Código</th>
             <th className="px-3 py-2">Descripción</th>
+            <th className="px-3 py-2">Vencimiento</th>
             <th className="px-3 py-2 text-right">Recibido</th>
             <th className="px-3 py-2 text-right">Por pallet</th>
             <th className="px-3 py-2 text-right">Pallets</th>
@@ -412,6 +454,9 @@ export function ResultadoTable({ detalle }) {
               <tr className={cx(d.estado === 'genera' && 'bg-emerald-50/50')}>
                 <td className="px-3 py-2 font-mono font-bold">{d.estilo}</td>
                 <td className="px-3 py-2 text-zinc-700">{d.descripcion || <span className="text-zinc-400">—</span>}</td>
+                <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                  {d.fechas?.length ? d.fechas.map((f) => <span key={f} className="block">{formatFecha(f)}</span>) : <span className="text-zinc-400">—</span>}
+                </td>
                 <td className="px-3 py-2 text-right font-semibold tabular-nums">{fmt(d.recibido)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">
                   {d.por_pallet ? (
@@ -438,5 +483,54 @@ export function ResultadoTable({ detalle }) {
         </tbody>
       </table>
     </div>
+  )
+}
+
+/* ---------- Filas tal como vinieron en el Excel del ingreso ---------- */
+function IngresoFilas({ ingresoId }) {
+  const [rows, setRows] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    listIngresoDetalle(ingresoId)
+      .then((r) => alive && setRows(r))
+      .catch((e) => alive && setError(friendlyError(e)))
+    return () => {
+      alive = false
+    }
+  }, [ingresoId])
+
+  if (error) return <p className="px-1 text-xs text-red-600">{error}</p>
+  if (!rows) return <Spinner className="mx-auto h-4 w-4 text-zinc-400" />
+  if (!rows.length) return null
+  return (
+    <>
+      <p className="px-1 pt-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">Filas del ingreso ({fmt(rows.length)})</p>
+      <div className="max-h-72 overflow-auto rounded-lg border border-zinc-200 bg-white">
+        <table className="w-full min-w-[560px] text-xs sm:text-sm">
+          <thead className="sticky top-0 bg-zinc-50">
+            <tr className="border-b border-zinc-200 text-left text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+              <th className="px-3 py-2">Fila</th>
+              <th className="px-3 py-2">Código</th>
+              <th className="px-3 py-2">Descripción</th>
+              <th className="px-3 py-2 text-right">Cantidad</th>
+              <th className="px-3 py-2">Vencimiento</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100">
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td className="px-3 py-1.5 tabular-nums text-zinc-400">{r.fila ?? '—'}</td>
+                <td className="px-3 py-1.5 font-mono font-bold">{r.estilo}</td>
+                <td className="px-3 py-1.5 text-zinc-700">{r.descripcion || '—'}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums">{fmt(r.cantidad)}</td>
+                <td className="px-3 py-1.5 tabular-nums">{formatFecha(r.fecha_vencimiento) || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }
