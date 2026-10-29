@@ -182,7 +182,7 @@ function IngresoDialog({ open, onClose, onDone }) {
       if (!r.estilo.trim() && !r.cantidad.trim()) return
       const estilo = normalizeEstilo(r.estilo)
       const cantidad = parseEntero(r.cantidad)
-      if (!isValidEstilo(estilo)) errores.push({ fila: i + 1, estilo: r.estilo, motivo: 'Código vacío o no válido' })
+      if (!isValidEstilo(estilo)) errores.push({ fila: i + 1, estilo: r.estilo, motivo: 'Estilo vacío o no válido' })
       else if (!(cantidad >= 1)) errores.push({ fila: i + 1, estilo, motivo: 'Cantidad vacía o no es un entero positivo' })
       else items.push({ fila: i + 1, estilo, descripcion: '', cantidad, fecha: r.fecha || null })
     })
@@ -268,7 +268,7 @@ function IngresoDialog({ open, onClose, onDone }) {
       icon={PackagePlus}
       size="lg"
       title="Insertar ingreso"
-      subtitle="Cantidad recibida en UNIDADES · el mismo código repetido se suma"
+      subtitle="Cantidad recibida en UNIDADES · el mismo estilo repetido se suma"
       footer={
         <>
           <Button onClick={onClose} disabled={working}>Cancelar</Button>
@@ -340,7 +340,7 @@ function IngresoDialog({ open, onClose, onDone }) {
           ) : (
             <div className="space-y-2">
               <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_36px] gap-2 px-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                <span>Código</span>
+                <span>Estilo</span>
                 <span>Cantidad (und.)</span>
                 <span>Vencimiento</span>
                 <span />
@@ -438,7 +438,7 @@ export function ResultadoTable({ detalle }) {
       <table className="w-full min-w-[720px] text-xs sm:text-sm">
         <thead>
           <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-            <th className="px-3 py-2">Código</th>
+            <th className="px-3 py-2">Estilo</th>
             <th className="px-3 py-2">Descripción</th>
             <th className="px-3 py-2">Vencimiento</th>
             <th className="px-3 py-2 text-right">Recibido</th>
@@ -512,7 +512,7 @@ function IngresoFilas({ ingresoId }) {
           <thead className="sticky top-0 bg-zinc-50">
             <tr className="border-b border-zinc-200 text-left text-[11px] font-bold uppercase tracking-wide text-zinc-500">
               <th className="px-3 py-2">Fila</th>
-              <th className="px-3 py-2">Código</th>
+              <th className="px-3 py-2">Estilo</th>
               <th className="px-3 py-2">Descripción</th>
               <th className="px-3 py-2 text-right">Cantidad</th>
               <th className="px-3 py-2">Vencimiento</th>

@@ -50,13 +50,16 @@ export async function getPaletizado(estilo) {
 /** items: [{ estilo, descripcion, factor, cama, altura }] (en lotes de 1000). */
 export async function guardarPaletizado({ items, aplicar, onProgress }) {
   const BATCH = 1000
-  const total = { nuevos: 0, actualizados: 0, sin_cambios: 0, invalidos: 0 }
+  const total = { nuevos: 0, actualizados: 0, sin_cambios: 0, invalidos: 0, repetidos: 0 }
+  const cambios = []
   for (let i = 0; i < items.length; i += BATCH) {
     const data = await rpc('guardar_paletizado', { p_items: items.slice(i, i + BATCH), p_aplicar: aplicar })
     for (const k of Object.keys(total)) total[k] += data[k] ?? 0
+    cambios.push(...(data.cambios || []))
     onProgress?.(Math.min(i + BATCH, items.length), items.length)
   }
-  return total
+  // cambios: [{ estilo, tipo: 'nuevo' | 'actualiza', antes, despues }]
+  return { ...total, cambios }
 }
 
 /* ---------- Ingresos ---------- */

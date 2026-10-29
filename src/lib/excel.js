@@ -290,7 +290,7 @@ export async function parsePaletizadoFile(file) {
     ['estilo', 'factor', 'cama', 'altura'],
   )
   if (!found) {
-    throw new Error('No se encontraron los encabezados. El Excel debe tener las columnas: Código (o Estilo), Factor, Cama y Altura.')
+    throw new Error('No se encontraron los encabezados. El Excel debe tener las columnas: Estilo (o ProductoCodigo), Factor, Cama y Altura.')
   }
 
   const { headerIdx, cols } = found
@@ -311,7 +311,7 @@ export async function parsePaletizadoFile(file) {
     const totalExcel = parseEntero(get(r, 'total'))
 
     let motivo = ''
-    if (!isValidEstilo(estilo)) motivo = 'Código vacío o no válido'
+    if (!isValidEstilo(estilo)) motivo = 'Estilo vacío o no válido'
     else if (!(factor >= 1 && factor <= 100000)) motivo = 'Factor vacío o no es un entero entre 1 y 100 000'
     else if (!(cama >= 1 && cama <= 1000)) motivo = 'Cama vacía o no es un entero entre 1 y 1 000'
     else if (!(altura >= 1 && altura <= 1000)) motivo = 'Altura vacía o no es un entero entre 1 y 1 000'
@@ -348,7 +348,7 @@ export async function parseIngresoFile(file) {
   }
   const found = findHeader(matrix, { cantidad: isCantidad, descripcion: isDescHeader, fecha: isFecha }, ['estilo', 'cantidad'])
   if (!found) {
-    throw new Error('No se encontraron los encabezados. El Excel debe tener las columnas: Código (o Estilo) y Cantidad recibida.')
+    throw new Error('No se encontraron los encabezados. El Excel debe tener las columnas: Estilo (o ProductoCodigo) y Cantidad.')
   }
 
   const { headerIdx, cols } = found
@@ -373,7 +373,7 @@ export async function parseIngresoFile(file) {
     const fecha = parseFecha(rawF)
     const descripcion = cols.descripcion === -1 ? '' : String(r[cols.descripcion] ?? '').replace(/\s+/g, ' ').trim()
     let motivo = ''
-    if (!isValidEstilo(estilo)) motivo = 'Código vacío o no válido'
+    if (!isValidEstilo(estilo)) motivo = 'Estilo vacío o no válido'
     else if (!(cantidad >= 1)) motivo = `Cantidad "${String(rawC).trim()}" no es un entero positivo`
     else if (fecha === false) motivo = `Fecha "${String(rawF).trim()}" no es una fecha válida (día/mes/año)`
     if (motivo) {

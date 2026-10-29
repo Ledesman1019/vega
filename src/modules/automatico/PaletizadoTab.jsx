@@ -60,7 +60,7 @@ export default function PaletizadoTab() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por código o descripción"
+            placeholder="Buscar por estilo o descripción"
             className={cx(inputClass(), 'h-10 pl-9 text-sm')}
           />
         </div>
@@ -76,7 +76,7 @@ export default function PaletizadoTab() {
         <EmptyState
           icon={Layers}
           title={debounced ? 'Sin resultados' : 'Aún no hay paletizado'}
-          text={debounced ? 'Prueba con otro código o descripción.' : 'Importa tu Excel (Código, Descripción, Factor, Cama, Altura) o agrega los productos uno por uno.'}
+          text={debounced ? 'Prueba con otro estilo o descripción.' : 'Importa tu Excel (Estilo, Descripción, Factor, Cama, Altura) o agrega los productos uno por uno.'}
         />
       ) : (
         <div className="relative overflow-x-auto">
@@ -88,7 +88,7 @@ export default function PaletizadoTab() {
           <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                <th className="px-4 py-2.5 sm:px-5">Código</th>
+                <th className="px-4 py-2.5 sm:px-5">Estilo</th>
                 <th className="px-3 py-2.5">Descripción</th>
                 <th className="px-3 py-2.5 text-right">Factor</th>
                 <th className="px-3 py-2.5 text-right">Cama</th>
@@ -153,7 +153,7 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
     setError('')
   }, [open, row])
 
-  // Al escribir un código nuevo: trae su paletizado (si ya existe) o la descripción
+  // Al escribir un estilo nuevo: trae su paletizado (si ya existe) o la descripción
   const debouncedEstilo = useDebounce(form.estilo, 300)
   useEffect(() => {
     if (!open || isEdit) return
@@ -165,7 +165,7 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
         if (id !== lookupRef.current) return
         if (pal) {
           setForm({ estilo: est, descripcion: pal.descripcion, factor: String(pal.factor), cama: String(pal.cama), altura: String(pal.altura) })
-          setHint('Este código ya tiene paletizado: al guardar se actualiza.')
+          setHint('Este estilo ya existe: al guardar se actualizan sus campos (no se duplica).')
         } else {
           if (prod) setForm((f) => ({ ...f, descripcion: f.descripcion || prod.descripcion }))
           setHint(prod ? 'Producto encontrado en la base.' : 'No está en la base de productos: escribe la descripción.')
@@ -190,7 +190,7 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
     e.preventDefault()
     const estilo = normalizeEstilo(form.estilo)
     const descripcion = form.descripcion.replace(/\s+/g, ' ').trim()
-    if (!isValidEstilo(estilo)) return setError('Ingresa un código válido.')
+    if (!isValidEstilo(estilo)) return setError('Ingresa un estilo válido.')
     if (!descripcion) return setError('Ingresa la descripción.')
     if (!(factor >= 1 && factor <= 100000)) return setError('El factor debe ser un entero entre 1 y 100 000.')
     if (!(cama >= 1 && cama <= 1000)) return setError('La cama debe ser un entero entre 1 y 1 000.')
@@ -226,7 +226,7 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
       }
     >
       <form id="paletizado-form" onSubmit={save} className="space-y-4">
-        <Field label="Código (estilo)" hint={hint}>
+        <Field label="Estilo" hint={hint}>
           <input
             value={form.estilo}
             onChange={set('estilo')}
@@ -357,7 +357,7 @@ function PaletizadoImportDialog({ open, onClose, onDone }) {
       icon={Upload}
       size="lg"
       title="Importar paletizado desde Excel"
-      subtitle="Columnas: Código, Descripción, Factor, Cama, Altura (Total opcional)"
+      subtitle="Columnas: Estilo, Descripción, Factor, Cama, Altura (Total opcional)"
       footer={
         <>
           <Button onClick={onClose} disabled={working}>Cancelar</Button>
@@ -393,15 +393,71 @@ function PaletizadoImportDialog({ open, onClose, onDone }) {
       )}
 
       {preview && (
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <Mini label="Nuevos" value={preview.nuevos} tone="text-emerald-600" />
-          <Mini label="Se actualizan" value={preview.actualizados} tone="text-sky-600" />
-          <Mini label="Sin cambios" value={preview.sin_cambios} tone="text-zinc-500" />
-        </div>
+        <>
+          <p className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+            Comparado con la base (el estilo nunca se duplica)
+          </p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <Mini label="Nuevos" value={preview.nuevos} tone="text-emerald-600" />
+            <Mini label="Se actualizan" value={preview.actualizados} tone="text-sky-600" />
+            <Mini label="Sin cambios" value={preview.sin_cambios} tone="text-zinc-500" />
+          </div>
+          <CambiosList cambios={preview.cambios} />
+        </>
       )}
 
       {error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
     </Modal>
+  )
+}
+
+/* ---------- Qué se agrega y qué campo cambia en cada estilo ---------- */
+const CAMPOS = [
+  ['descripcion', 'Descripción'],
+  ['factor', 'Factor'],
+  ['cama', 'Cama'],
+  ['altura', 'Altura'],
+]
+
+function CambiosList({ cambios }) {
+  if (!cambios?.length) return null
+  return (
+    <div className="mt-3 max-h-72 overflow-y-auto rounded-lg border border-zinc-200">
+      <table className="w-full text-xs sm:text-sm">
+        <thead className="sticky top-0 bg-zinc-50 text-left text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+          <tr>
+            <th className="px-3 py-2">Estilo</th>
+            <th className="px-3 py-2">Qué pasa</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-100">
+          {cambios.map((c) => (
+            <tr key={c.estilo} className="align-top">
+              <td className="px-3 py-2 font-mono font-bold">{c.estilo}</td>
+              <td className="px-3 py-2">
+                {c.tipo === 'nuevo' ? (
+                  <span>
+                    <span className="mr-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700">Nuevo</span>
+                    {c.despues.descripcion} · {c.despues.factor} × ({c.despues.cama} × {c.despues.altura}) ={' '}
+                    <b>{fmt(c.despues.factor * c.despues.cama * c.despues.altura)} und.</b>
+                  </span>
+                ) : (
+                  <ul className="space-y-0.5">
+                    {CAMPOS.filter(([k]) => c.antes[k] !== c.despues[k]).map(([k, label]) => (
+                      <li key={k}>
+                        <span className="font-semibold text-zinc-600">{label}:</span>{' '}
+                        <span className="text-red-600 line-through">{k === 'descripcion' ? c.antes[k] : fmt(c.antes[k])}</span>{' '}
+                        → <b className="text-sky-700">{k === 'descripcion' ? c.despues[k] : fmt(c.despues[k])}</b>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -452,7 +508,7 @@ export function ErroresList({ errores }) {
         <thead className="sticky top-0 bg-red-50 text-left font-bold text-red-800">
           <tr>
             <th className="px-3 py-1.5">Fila</th>
-            <th className="px-3 py-1.5">Código</th>
+            <th className="px-3 py-1.5">Estilo</th>
             <th className="px-3 py-1.5">Motivo</th>
           </tr>
         </thead>
