@@ -252,6 +252,26 @@ export default function PendientesTab({ onChange }) {
                         <span className="flex h-11 items-center font-bold tabular-nums">{formatFecha(fecha) || '—'}</span>
                       )}
                     </label>
+                    {estado === 'pendiente' && g.fechas_ingreso?.length > 1 && (
+                      <div className="order-last w-full">
+                        <p className="mb-1 text-xs font-semibold text-amber-700">El ingreso trae varias fechas para este producto: elige la del pallet.</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {g.fechas_ingreso.map((f) => (
+                            <button
+                              key={f}
+                              type="button"
+                              onClick={() => setFechas((x) => ({ ...x, [g.key]: f }))}
+                              className={cx(
+                                'rounded-md px-2.5 py-1 text-xs font-bold tabular-nums ring-1 ring-inset',
+                                fecha === f ? 'bg-vega-ink text-white ring-vega-ink' : 'bg-amber-50 text-amber-800 ring-amber-200 hover:bg-amber-100',
+                              )}
+                            >
+                              {formatFecha(f)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <Button variant="primary" icon={Printer} onClick={() => imprimir(g)} loading={busy === `${g.key}:print`} disabled={!!busy} className="h-11">
                       {estado === 'pendiente' ? 'Imprimir' : 'Reimprimir'} {n > 1 ? `(${n})` : ''}
                     </Button>

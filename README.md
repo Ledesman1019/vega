@@ -53,7 +53,7 @@ Módulo protegido con la misma clave de Importar Excel; el resto de módulos sig
 Ejecuta una vez `supabase/05_acceso_admin.sql` en Supabase > SQL Editor. La clave se
 vuelve a pedir al recargar la app o tras 30 minutos sin uso.
 
-Ejecuta también `supabase/06_rotulo_automatico.sql` y `supabase/07_ingresos_detalle.sql`. El módulo tiene tres pestañas:
+Ejecuta también `supabase/06_rotulo_automatico.sql` y `supabase/07_ingresos_detalle.sql` y `supabase/08_fv_desde_ingreso.sql` (la FV del rótulo sale del ingreso). El módulo tiene tres pestañas:
 
 - **Paletizado:** factor (unidades por caja), cama y altura por producto. Total = cama × altura
   (cajas por pallet); unidades por pallet = factor × total. Se importa por Excel o se escribe a mano.
