@@ -135,6 +135,9 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
   const open = row !== null
   const isEdit = !!row?.estilo
   const [form, setForm] = useState({ estilo: '', descripcion: '', factor: '', cama: '', altura: '' })
+  const [existente, setExistente] = useState(false) // al agregar, el estilo ya tenía paletizado
+  // Un paletizado ya guardado solo cambia cama y altura; el factor no se toca aquí
+  const bloqueado = isEdit || existente
   const [hint, setHint] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -149,6 +152,7 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
       cama: row.cama ? String(row.cama) : '',
       altura: row.altura ? String(row.altura) : '',
     })
+    setExistente(false)
     setHint('')
     setError('')
   }, [open, row])
@@ -158,14 +162,16 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
   useEffect(() => {
     if (!open || isEdit) return
     const est = normalizeEstilo(debouncedEstilo)
-    if (!isValidEstilo(est)) return setHint('')
     const id = ++lookupRef.current
+    setExistente(false)
+    if (!isValidEstilo(est)) return setHint('')
     Promise.all([getPaletizado(est), getProducto(est)])
       .then(([pal, prod]) => {
         if (id !== lookupRef.current) return
         if (pal) {
           setForm({ estilo: est, descripcion: pal.descripcion, factor: String(pal.factor), cama: String(pal.cama), altura: String(pal.altura) })
-          setHint('Este estilo ya existe: al guardar se actualizan sus campos (no se duplica).')
+          setExistente(true)
+          setHint('Este estilo ya existe: solo se actualizan cama y altura (no se duplica).')
         } else {
           if (prod) setForm((f) => ({ ...f, descripcion: f.descripcion || prod.descripcion }))
           setHint(prod ? 'Producto encontrado en la base.' : 'No está en la base de productos: escribe la descripción.')
@@ -215,7 +221,7 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
       onClose={busy ? undefined : onClose}
       icon={Layers}
       title={isEdit ? `Editar paletizado · ${row.estilo}` : 'Agregar paletizado'}
-      subtitle="Factor, cama y altura del producto en almacén"
+      subtitle={bloqueado ? 'Solo se pueden cambiar cama y altura' : 'Factor, cama y altura del producto en almacén'}
       footer={
         <>
           <Button onClick={onClose} disabled={busy}>Cancelar</Button>
@@ -237,14 +243,14 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
           />
         </Field>
         <Field label="Descripción">
-          <input value={form.descripcion} onChange={set('descripcion')} className={inputClass()} placeholder="Ej. BONLE PROTECCIÓN 390G" />
+          <input value={form.descripcion} onChange={set('descripcion')} disabled={bloqueado} className={cx(inputClass(), 'disabled:bg-zinc-100')} placeholder="Ej. BONLE PROTECCIÓN 390G" />
         </Field>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Factor">
-            <input value={form.factor} onChange={set('factor')} inputMode="numeric" className={cx(inputClass(), 'font-bold tabular-nums')} placeholder="24" autoFocus={isEdit} />
+          <Field label="Factor" hint={bloqueado ? 'No editable' : undefined}>
+            <input value={form.factor} onChange={set('factor')} disabled={bloqueado} inputMode="numeric" className={cx(inputClass(), 'font-bold tabular-nums disabled:bg-zinc-100 disabled:text-zinc-500')} placeholder="24" />
           </Field>
           <Field label="Cama">
-            <input value={form.cama} onChange={set('cama')} inputMode="numeric" className={cx(inputClass(), 'font-bold tabular-nums')} placeholder="8" />
+            <input value={form.cama} onChange={set('cama')} inputMode="numeric" className={cx(inputClass(), 'font-bold tabular-nums')} placeholder="8" autoFocus={isEdit} />
           </Field>
           <Field label="Altura">
             <input value={form.altura} onChange={set('altura')} inputMode="numeric" className={cx(inputClass(), 'font-bold tabular-nums')} placeholder="10" />
