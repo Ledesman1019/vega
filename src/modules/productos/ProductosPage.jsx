@@ -119,7 +119,7 @@ export default function ProductosPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por estilo o descripción…"
+              placeholder="Buscar por estilo, descripción o EAN…"
               className={cx(inputClass(), 'h-10 pl-9 pr-9 text-sm')}
               inputMode="search"
             />
@@ -177,6 +177,7 @@ export default function ProductosPage() {
                 <thead>
                   <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-[11px] font-bold uppercase tracking-wider text-zinc-500">
                     <th className="w-36 px-5 py-2.5">N° / Estilo</th>
+                    <th className="w-44 px-3 py-2.5">EAN (SKU)</th>
                     <th className="px-3 py-2.5">Descripción</th>
                     <th className="w-44 px-3 py-2.5">Marca</th>
                     <th className="w-32 px-5 py-2.5 text-right">Acciones</th>
@@ -186,6 +187,9 @@ export default function ProductosPage() {
                   {rows.map((p) => (
                     <tr key={p.estilo} className="transition-colors hover:bg-red-50/40">
                       <td className="px-5 py-2.5 font-mono text-[13px] font-bold text-zinc-900">{p.estilo}</td>
+                      <td className="px-3 py-2.5">
+                        <Eans eans={p.eans} />
+                      </td>
                       <td className="px-3 py-2.5 font-medium text-zinc-700">{p.descripcion}</td>
                       <td className="px-3 py-2.5">
                         <button onClick={() => setMarca(p.marca)} title="Filtrar por esta marca">
@@ -213,6 +217,11 @@ export default function ProductosPage() {
                       <Badge className="max-w-[45%] truncate">{p.marca}</Badge>
                     </div>
                     <p className="mt-0.5 text-[13px] font-medium leading-snug text-zinc-600">{p.descripcion}</p>
+                    {p.eans?.length > 0 && (
+                      <div className="mt-0.5 text-[11px]">
+                        <Eans eans={p.eans} />
+                      </div>
+                    )}
                   </div>
                   <Button size="sm" variant="dark" icon={Printer} onClick={() => goRotulo(p)} aria-label={`Crear rótulo de ${p.estilo}`}>
                     Rótulo
@@ -229,5 +238,17 @@ export default function ProductosPage() {
       <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onDone={refresh} />
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
     </div>
+  )
+}
+
+/** Código(s) de barras del estilo: el primero y "+N" si tiene más. */
+function Eans({ eans }) {
+  if (!eans?.length) return <span className="text-zinc-300">—</span>
+  const [first, ...rest] = eans.map((e) => e.ean)
+  return (
+    <span className="font-mono text-[12px] tabular-nums text-zinc-600" title={eans.map((e) => e.ean).join('\n')}>
+      {first}
+      {rest.length > 0 && <span className="ml-1 rounded bg-zinc-100 px-1 text-[10px] font-bold text-zinc-500">+{rest.length}</span>}
+    </span>
   )
 }

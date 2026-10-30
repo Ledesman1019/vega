@@ -381,6 +381,7 @@ function PaletizadoImportDialog({ open, onClose, onDone }) {
         <div className="mt-4 space-y-3">
           <p className="text-center text-xs text-zinc-500">
             <b className="text-zinc-800">{fmt(parsed.items.length)}</b> productos correctos
+            {parsed.sinPaletizado > 0 && <> · {fmt(parsed.sinPaletizado)} sin cama/altura (se omiten)</>}
             {parsed.repetidos > 0 && <> · {fmt(parsed.repetidos)} repetidos (se toma el último)</>}
             {parsed.errores.length > 0 && <> · <span className="font-semibold text-red-600">{fmt(parsed.errores.length)} filas con error (no se importan)</span></>}
           </p>

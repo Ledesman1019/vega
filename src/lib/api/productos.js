@@ -44,14 +44,23 @@ export async function listProductos({ search = '', marca = '', sort = 'estilo', 
   const s = SORTS[sort] || SORTS.estilo
   let query = sb
     .from('productos')
-    .select('estilo, descripcion, marca', { count: 'exact' })
+    // eans: códigos de barras del estilo (tabla productos_ean, puede haber varios)
+    .select('estilo, descripcion, marca, eans:productos_ean(ean)', { count: 'exact' })
     .order(s.column, { ascending: s.ascending ?? true })
     .range(page * pageSize, page * pageSize + pageSize - 1)
 
   if (s.column !== 'estilo') query = query.order('estilo', { ascending: true })
 
   const term = cleanTerm(search)
-  if (term) query = query.or(`estilo.ilike."%${term}%",descripcion.ilike."%${term}%"`)
+  if (/^\d{8,14}$/.test(term)) {
+    // Un código de barras: busca el estilo por su EAN (o por el texto, por si acaso)
+    const { data: hits, error: e } = await sb.from('productos_ean').select('estilo').like('ean', `${term}%`).limit(200)
+    if (e) throw e
+    const estilos = [...new Set((hits || []).map((h) => h.estilo))]
+    query = estilos.length
+      ? query.or(`estilo.in.(${estilos.map((x) => `"${x}"`).join(',')}),descripcion.ilike."%${term}%"`)
+      : query.or(`estilo.ilike."%${term}%",descripcion.ilike."%${term}%"`)
+  } else if (term) query = query.or(`estilo.ilike."%${term}%",descripcion.ilike."%${term}%"`)
   if (marca) query = query.eq('marca', marca)
 
   const { data, count, error } = await query

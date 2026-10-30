@@ -272,7 +272,9 @@ function findHeader(matrix, detectors, required) {
 /**
  * Tabla 1 (paletizado): Código/Estilo, Descripción (opcional), Factor,
  * Cama, Altura y Total (opcional: si viene, se verifica que sea cama × altura).
- * Devuelve { items, errores: [{fila, estilo, motivo}], repetidos, total }.
+ * Otras columnas (EAN, Clase…) se ignoran. Filas con cama y altura vacías
+ * no son error: se cuentan en sinPaletizado y se omiten.
+ * Devuelve { items, errores: [{fila, estilo, motivo}], sinPaletizado, repetidos, total }.
  */
 export async function parsePaletizadoFile(file) {
   const matrix = await readMatrix(file)
@@ -298,6 +300,7 @@ export async function parsePaletizadoFile(file) {
   const map = new Map()
   const errores = []
   let total = 0
+  let sinPaletizado = 0
   for (let i = headerIdx + 1; i < matrix.length; i++) {
     const r = matrix[i]
     if (!['estilo', 'factor', 'cama', 'altura'].some((k) => String(get(r, k) ?? '').trim())) continue
@@ -309,6 +312,12 @@ export async function parsePaletizadoFile(file) {
     const cama = parseEntero(get(r, 'cama'))
     const altura = parseEntero(get(r, 'altura'))
     const totalExcel = parseEntero(get(r, 'total'))
+
+    // Producto sin paletizado (cama y altura vacías): no es un error, se omite
+    if (cama === null && altura === null && isValidEstilo(estilo)) {
+      sinPaletizado++
+      continue
+    }
 
     let motivo = ''
     if (!isValidEstilo(estilo)) motivo = 'Estilo vacío o no válido'
@@ -325,7 +334,7 @@ export async function parsePaletizadoFile(file) {
   }
 
   const items = [...map.values()]
-  return { items, errores, repetidos: total - errores.length - items.length, total }
+  return { items, errores, sinPaletizado, repetidos: total - sinPaletizado - errores.length - items.length, total }
 }
 
 /**
