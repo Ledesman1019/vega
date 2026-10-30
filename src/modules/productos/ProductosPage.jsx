@@ -3,9 +3,10 @@
 // Módulo Productos: consulta de la base. Por fila no se edita ni se
 // elimina nada. Importar Excel exige la clave de administrador y nunca
 // duplica (ver supabase/02_importar_con_clave.sql). Exportar exige la
-// misma clave (ver supabase/03_exportar_con_clave.sql).
+// misma clave (ver supabase/03_exportar_con_clave.sql). Eliminar base
+// borra todo para subir una nueva (clave + ELIMINAR, ver 11_...sql).
 import { useCallback, useEffect, useState } from 'react'
-import { Package, Tags, ListFilter, Search, Printer, Database, X, Upload, Download } from 'lucide-react'
+import { Package, Tags, ListFilter, Search, Printer, Database, X, Upload, Download, Trash2 } from 'lucide-react'
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorBanner, Pagination, StatCard, Spinner, inputClass, cx } from '../../components/ui.jsx'
 import { useDebounce } from '../../hooks/useDebounce.js'
 import { navigate } from '../../lib/router.js'
@@ -13,6 +14,7 @@ import { friendlyError, isSupabaseConfigured } from '../../lib/supabase.js'
 import { SORTS, countProductos, listMarcas, listProductos } from '../../lib/api/productos.js'
 import ImportDialog from './ImportDialog.jsx'
 import ExportDialog from './ExportDialog.jsx'
+import DeleteBaseDialog from './DeleteBaseDialog.jsx'
 
 const PAGE_SIZE = 50
 
@@ -34,6 +36,7 @@ export default function ProductosPage() {
   const refresh = useCallback(() => setReload((n) => n + 1), [])
   const [importOpen, setImportOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   // Totales y marcas
   useEffect(() => {
@@ -99,7 +102,7 @@ export default function ProductosPage() {
         <CardHeader
           icon={Package}
           title="Base de productos"
-          subtitle="Consulta de productos · importar y exportar requieren clave"
+          subtitle="Consulta de productos · importar, exportar y eliminar requieren clave"
           actions={
             <>
               <Button variant="success" icon={Upload} onClick={() => setImportOpen(true)} className="flex-1 sm:flex-none">
@@ -107,6 +110,9 @@ export default function ProductosPage() {
               </Button>
               <Button icon={Download} onClick={() => setExportOpen(true)} className="flex-1 sm:flex-none">
                 Exportar Excel
+              </Button>
+              <Button variant="danger" icon={Trash2} onClick={() => setDeleteOpen(true)} className="flex-1 sm:flex-none">
+                Eliminar base
               </Button>
             </>
           }
@@ -237,6 +243,20 @@ export default function ProductosPage() {
 
       <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onDone={refresh} />
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
+      <DeleteBaseDialog
+        open={deleteOpen}
+        total={total}
+        onClose={() => setDeleteOpen(false)}
+        onDone={() => {
+          setSearch('')
+          setMarca('')
+          refresh()
+        }}
+        onImport={() => {
+          setDeleteOpen(false)
+          setImportOpen(true)
+        }}
+      />
     </div>
   )
 }

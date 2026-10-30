@@ -182,3 +182,15 @@ export async function importarEans({ clave, codigos, aplicar }) {
   }
   return total
 }
+
+/**
+ * Borra TODOS los productos y sus EAN (función eliminar_base_productos de
+ * supabase/11_eliminar_base_productos.sql). Exige la clave y la palabra
+ * ELIMINAR. Devuelve { productos, eans } borrados.
+ */
+export async function eliminarBaseProductos({ clave, confirmacion }) {
+  const sb = requireSupabase()
+  const { data, error } = await sb.rpc('eliminar_base_productos', { p_clave: clave, p_confirmacion: confirmacion })
+  if (error) throw error
+  return data
+}
