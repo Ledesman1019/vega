@@ -2,10 +2,10 @@
 //
 // Estructura tipo ERP:
 //  - PC/laptop: barra lateral oscura fija + barra superior con el título.
-//  - Teléfono: barra superior compacta + navegación inferior (4 módulos).
+//  - Teléfono: barra superior compacta + navegación inferior (5 módulos).
 //  Los módulos con admin: true piden la clave de administrador (candado).
 import { useEffect, useState } from 'react'
-import { Package, Tag, History, Download, Wifi, WifiOff, Database, WandSparkles, Lock } from 'lucide-react'
+import { Package, Tag, History, Download, Wifi, WifiOff, Database, WandSparkles, Lock, PackageSearch } from 'lucide-react'
 import { navigate } from '../lib/router.js'
 import { isSupabaseConfigured } from '../lib/supabase.js'
 import { useAdminUnlocked } from '../lib/api/admin.js'
@@ -16,6 +16,7 @@ import { NotificationBell } from '../components/Notifications.jsx'
 export const MODULES = [
   { id: 'productos', label: 'Productos', short: 'Productos', icon: Package, desc: 'Base de productos · importar y exportar' },
   { id: 'rotulo', label: 'Crear rótulo', short: 'Rótulo', icon: Tag, desc: 'Genera, imprime o descarga el rótulo del pallet' },
+  { id: 'consulta', label: 'Consulta', short: 'Consulta', icon: PackageSearch, desc: 'Busca un producto y mira su cama, altura y total' },
   { id: 'historial', label: 'Historial de rótulos', short: 'Historial', icon: History, desc: 'Rótulos impresos y descargados' },
   { id: 'automatico', label: 'Rótulo automático', short: 'Automático', icon: WandSparkles, desc: 'Solo administrador · protegido con clave', admin: true },
 ]
@@ -167,7 +168,7 @@ export default function AppShell({ route, children }) {
 
       {/* ============ NAVEGACIÓN INFERIOR (teléfono) ============ */}
       <nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-zinc-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
-        <ul className="mx-auto grid max-w-md grid-cols-4">
+        <ul className="mx-auto grid max-w-lg grid-cols-5">
           {MODULES.map((m) => {
             const active = m.id === current.id
             return (

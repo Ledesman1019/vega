@@ -6,6 +6,7 @@ import ProductosPage from './modules/productos/ProductosPage.jsx'
 import RotuloPage from './modules/rotulo/RotuloPage.jsx'
 import HistorialPage from './modules/historial/HistorialPage.jsx'
 import AutomaticoPage from './modules/automatico/AutomaticoPage.jsx'
+import ConsultaPage from './modules/consulta/ConsultaPage.jsx'
 import { NotificationProvider } from './components/Notifications.jsx'
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
         <AppShell route={route.name}>
           {route.name === 'productos' && <ProductosPage />}
           {route.name === 'rotulo' && <RotuloPage params={route.params} />}
+          {route.name === 'consulta' && <ConsultaPage />}
           {route.name === 'historial' && <HistorialPage />}
           {route.name === 'automatico' && <AutomaticoPage />}
         </AppShell>

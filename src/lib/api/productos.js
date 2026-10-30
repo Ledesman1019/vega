@@ -9,7 +9,7 @@ export const SORTS = {
 }
 
 // Quita los caracteres que rompen la sintaxis de filtros de PostgREST
-const cleanTerm = (q) => q.replace(/[,()*%"\\]/g, ' ').trim()
+export const cleanTerm = (q) => q.replace(/[,()*%"\\]/g, ' ').trim()
 
 /** Normaliza un estilo: sin espacios, mayúsculas y 6 dígitos si es numérico
  *  (Excel suele comerse los ceros de la izquierda: 10247 -> 010247). */
