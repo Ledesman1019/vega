@@ -1,6 +1,6 @@
 // src/modules/rotulo/BarcodeScanner.jsx
 //
-// Escáner de códigos de barras EAN-13 con la cámara del celular.
+// Escáner de códigos de barras (EAN-13, EAN-8 y UPC-A) con la cámara del celular.
 // Usa el detector nativo del navegador (Chrome/Android) cuando existe y,
 // si no, ZXing (iPhone, Firefox…), que se descarga solo al abrir el escáner.
 // Solo lee la franja del recuadro (así no toma el código del producto de
@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CameraOff, CircleX, Flashlight, FlashlightOff, Keyboard, LoaderCircle, ScanBarcode, Search, X } from 'lucide-react'
 import { cx } from '../../components/ui.jsx'
-import { isValidEan13 } from '../../lib/api/productos.js'
+import { isValidCodigoBarras, variantesEan } from '../../lib/api/productos.js'
 
 // Recuadro de lectura, en proporción del video
 const CROP = { w: 0.86, h: 0.36 }
@@ -34,10 +34,13 @@ export default function BarcodeScanner({ open, onClose, onLookup, onFound }) {
     setState('searching')
     feedback()
     try {
-      const producto = await onLookup(code)
-      if (producto) {
-        onFound(producto, code)
-        return
+      // UPC-A puede leerse con 12 o 13 dígitos: se prueban ambas formas
+      for (const variante of variantesEan(code)) {
+        const producto = await onLookup(variante)
+        if (producto) {
+          onFound(producto, variante)
+          return
+        }
       }
       setState('notfound')
       setMessage('')
@@ -106,7 +109,7 @@ export default function BarcodeScanner({ open, onClose, onLookup, onFound }) {
           canvas.height = Math.round(sh * scale)
           ctx.drawImage(video, (video.videoWidth - sw) / 2, (video.videoHeight - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height)
           const code = await decode(canvas)
-          if (code && isValidEan13(code)) {
+          if (code && isValidCodigoBarras(code)) {
             if (code === previous && alive && !pausedRef.current) {
               previous = ''
               handleCodeRef.current(code)
@@ -156,10 +159,10 @@ export default function BarcodeScanner({ open, onClose, onLookup, onFound }) {
   const submitManual = (e) => {
     e.preventDefault()
     const code = manual.trim()
-    if (!isValidEan13(code)) {
+    if (!isValidCodigoBarras(code)) {
       setState('notfound')
       setLastCode(code)
-      setMessage('El código debe tener 13 dígitos y ser un EAN-13 válido.')
+      setMessage('El código debe tener 8, 12 o 13 dígitos y ser válido (revisa el último dígito).')
       return
     }
     handleCode(code)
@@ -179,7 +182,7 @@ export default function BarcodeScanner({ open, onClose, onLookup, onFound }) {
             </span>
             <div className="min-w-0">
               <h3 className="font-bold">Escanear código de barras</h3>
-              <p className="truncate text-xs text-zinc-400">Apunta al código EAN-13 del producto</p>
+              <p className="truncate text-xs text-zinc-400">Apunta al código de barras del producto</p>
             </div>
           </div>
           <button onClick={onClose} className="rounded-lg p-2 text-zinc-400 hover:bg-white/10 hover:text-white" aria-label="Cerrar">
@@ -245,13 +248,13 @@ export default function BarcodeScanner({ open, onClose, onLookup, onFound }) {
                 value={manual}
                 onChange={(e) => setManual(e.target.value.replace(/\D/g, '').slice(0, 13))}
                 inputMode="numeric"
-                placeholder="Código de 13 dígitos"
+                placeholder="Código de 8, 12 o 13 dígitos"
                 className="h-11 min-w-0 flex-1 rounded-lg border border-white/15 bg-white/10 px-3 font-mono text-base tracking-wider text-white outline-none placeholder:font-sans placeholder:tracking-normal placeholder:text-zinc-500 focus:border-white/40"
                 autoFocus
               />
               <button
                 type="submit"
-                disabled={manual.length !== 13 || state === 'searching'}
+                disabled={![8, 12, 13].includes(manual.length) || state === 'searching'}
                 className="flex h-11 items-center gap-2 rounded-lg bg-vega-red px-4 text-sm font-bold disabled:opacity-40"
               >
                 <Search className="h-4 w-4" /> Buscar
@@ -302,8 +305,9 @@ async function createDecoder() {
   if ('BarcodeDetector' in window) {
     try {
       const formats = await window.BarcodeDetector.getSupportedFormats()
-      if (formats.includes('ean_13')) {
-        const detector = new window.BarcodeDetector({ formats: ['ean_13'] })
+      const usar = ['ean_13', 'ean_8', 'upc_a'].filter((x) => formats.includes(x))
+      if (usar.includes('ean_13')) {
+        const detector = new window.BarcodeDetector({ formats: usar })
         return async (canvas) => {
           try {
             const found = await detector.detect(canvas)
@@ -323,7 +327,7 @@ async function createDecoder() {
   const reader = new MultiFormatReader()
   reader.setHints(
     new Map([
-      [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13]],
+      [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A]],
       [DecodeHintType.TRY_HARDER, true],
     ]),
   )

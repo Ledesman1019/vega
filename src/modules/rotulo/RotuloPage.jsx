@@ -10,7 +10,7 @@ import { Button, Card, CardHeader, Field, inputClass, cx } from '../../component
 import { useToast } from '../../components/Toast.jsx'
 import { useDebounce } from '../../hooks/useDebounce.js'
 import { friendlyError, isSupabaseConfigured } from '../../lib/supabase.js'
-import { getProducto, getProductoByEan, isValidEan13, isValidEstilo, normalizeEstilo, suggestProductos } from '../../lib/api/productos.js'
+import { getProducto, getProductoByEan, isValidCodigoBarras, isValidEstilo, normalizeEstilo, suggestProductos } from '../../lib/api/productos.js'
 import { registrarRotulo } from '../../lib/api/historial.js'
 import { PAPERS, computeLabelLayout, loadLabelFont } from '../../lib/label/layout.js'
 import { buildLabelPdf } from '../../lib/label/pdf.js'
@@ -76,7 +76,7 @@ export default function RotuloPage({ params }) {
     }
     setLookup('loading')
     // Código de barras escrito o leído con una lectora USB/Bluetooth
-    if (isValidEan13(debounced)) {
+    if (isValidCodigoBarras(debounced)) {
       getProductoByEan(debounced)
         .then((p) => {
           if (!alive) return

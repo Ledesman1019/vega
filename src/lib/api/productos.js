@@ -39,6 +39,34 @@ export function isValidEan13(value) {
   return (10 - (sum % 10)) % 10 === Number(s[12])
 }
 
+/**
+ * Código de barras leído con la cámara: EAN-13, EAN-8 o UPC-A (12 dígitos)
+ * con el dígito verificador correcto (descarta lecturas fallidas).
+ */
+export function isValidCodigoBarras(value) {
+  const s = String(value ?? '').trim()
+  if (!/^(\d{8}|\d{12}|\d{13})$/.test(s)) return false
+  const digits = [...s].map(Number)
+  const check = digits.pop()
+  // Desde la derecha: pesos 3, 1, 3, 1… (igual para los tres formatos)
+  const sum = digits.reverse().reduce((acc, d, i) => acc + d * (i % 2 ? 1 : 3), 0)
+  return (10 - (sum % 10)) % 10 === check
+}
+
+/**
+ * El mismo código escrito de otra forma: UPC-A (12) = EAN-13 con un 0
+ * adelante, y en el Excel a veces se pierden los ceros de la izquierda
+ * (046500005602 quedó como 46500005602). Se prueban todas esas formas.
+ */
+export function variantesEan(code) {
+  const s = String(code ?? '').trim()
+  if (!/^\d{12,13}$/.test(s)) return [s]
+  const core = s.replace(/^0+/, '')
+  const out = [s]
+  for (const n of [core.length, 12, 13]) if (n >= core.length && n >= 11) out.push(core.padStart(n, '0'))
+  return [...new Set(out)]
+}
+
 export async function listProductos({ search = '', marca = '', sort = 'estilo', page = 0, pageSize = 50 }) {
   const sb = requireSupabase()
   const s = SORTS[sort] || SORTS.estilo
@@ -104,10 +132,10 @@ export async function getProductoByEan(ean) {
   const { data, error } = await sb
     .from('productos_ean')
     .select('producto:productos(estilo, descripcion, marca)')
-    .eq('ean', String(ean).trim())
-    .maybeSingle()
+    .in('ean', variantesEan(ean))
+    .limit(1)
   if (error) throw error
-  return data?.producto || null
+  return data[0]?.producto || null
 }
 
 /** Sugerencias para el buscador del rótulo (por estilo o descripción). */
