@@ -135,9 +135,12 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
   const open = row !== null
   const isEdit = !!row?.estilo
   const [form, setForm] = useState({ estilo: '', descripcion: '', factor: '', cama: '', altura: '' })
-  const [existente, setExistente] = useState(false) // al agregar, el estilo ya tenía paletizado
-  // Un paletizado ya guardado solo cambia cama y altura; el factor no se toca aquí
-  const bloqueado = isEdit || existente
+  const [existente, setExistente] = useState(null) // al agregar, el paletizado que ya tenía ese estilo
+  // Un paletizado ya guardado solo cambia cama y altura; el factor no se toca
+  // aquí (salvo que esté vacío: entonces se puede completar)
+  const guardado = isEdit ? row : existente
+  const bloqueado = !!guardado
+  const factorBloqueado = guardado?.factor != null
   const [hint, setHint] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -152,7 +155,7 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
       cama: row.cama ? String(row.cama) : '',
       altura: row.altura ? String(row.altura) : '',
     })
-    setExistente(false)
+    setExistente(null)
     setHint('')
     setError('')
   }, [open, row])
@@ -163,14 +166,15 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
     if (!open || isEdit) return
     const est = normalizeEstilo(debouncedEstilo)
     const id = ++lookupRef.current
-    setExistente(false)
+    setExistente(null)
     if (!isValidEstilo(est)) return setHint('')
     Promise.all([getPaletizado(est), getProducto(est)])
       .then(([pal, prod]) => {
         if (id !== lookupRef.current) return
         if (pal) {
-          setForm({ estilo: est, descripcion: pal.descripcion, factor: String(pal.factor), cama: String(pal.cama), altura: String(pal.altura) })
-          setExistente(true)
+          const txt = (n) => (n == null ? '' : String(n))
+          setForm({ estilo: est, descripcion: pal.descripcion, factor: txt(pal.factor), cama: txt(pal.cama), altura: txt(pal.altura) })
+          setExistente(pal)
           setHint('Este estilo ya existe: solo se actualizan cama y altura (no se duplica).')
         } else {
           if (prod) setForm((f) => ({ ...f, descripcion: f.descripcion || prod.descripcion }))
@@ -198,14 +202,16 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
     const descripcion = form.descripcion.replace(/\s+/g, ' ').trim()
     if (!isValidEstilo(estilo)) return setError('Ingresa un estilo válido.')
     if (!descripcion) return setError('Ingresa la descripción.')
-    if (!(factor >= 1 && factor <= 100000)) return setError('El factor debe ser un entero entre 1 y 100 000.')
-    if (!(cama >= 1 && cama <= 1000)) return setError('La cama debe ser un entero entre 1 y 1 000.')
-    if (!(altura >= 1 && altura <= 1000)) return setError('La altura debe ser un entero entre 1 y 1 000.')
+    // Vacío = se completa después (un dato ya guardado no se borra)
+    const rango = (n, max) => n === null || (n >= 1 && n <= max)
+    if (!rango(factor, 100000)) return setError('El factor debe ser un entero entre 1 y 100 000.')
+    if (!rango(cama, 1000)) return setError('La cama debe ser un entero entre 1 y 1 000.')
+    if (!rango(altura, 1000)) return setError('La altura debe ser un entero entre 1 y 1 000.')
     setBusy(true)
     try {
       const res = await guardarPaletizado({ items: [{ estilo, descripcion, factor, cama, altura }], aplicar: true })
       if (res.invalidos) throw new Error('Supabase rechazó los datos. Revisa los valores.')
-      toast(`Paletizado de ${estilo} guardado: ${fmt(unidades)} unidades por pallet.`)
+      toast(unidades ? `Paletizado de ${estilo} guardado: ${fmt(unidades)} unidades por pallet.` : `Paletizado de ${estilo} guardado (faltan datos por completar).`)
       onSaved()
       onClose()
     } catch (err) {
@@ -221,7 +227,7 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
       onClose={busy ? undefined : onClose}
       icon={Layers}
       title={isEdit ? `Editar paletizado · ${row.estilo}` : 'Agregar paletizado'}
-      subtitle={bloqueado ? 'Solo se pueden cambiar cama y altura' : 'Factor, cama y altura del producto en almacén'}
+      subtitle={factorBloqueado ? 'Solo se pueden cambiar cama y altura' : 'Factor, cama y altura del producto en almacén'}
       footer={
         <>
           <Button onClick={onClose} disabled={busy}>Cancelar</Button>
@@ -246,8 +252,8 @@ function PaletizadoDialog({ row, onClose, onSaved }) {
           <input value={form.descripcion} onChange={set('descripcion')} disabled={bloqueado} className={cx(inputClass(), 'disabled:bg-zinc-100')} placeholder="Ej. BONLE PROTECCIÓN 390G" />
         </Field>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Factor" hint={bloqueado ? 'No editable' : undefined}>
-            <input value={form.factor} onChange={set('factor')} disabled={bloqueado} inputMode="numeric" className={cx(inputClass(), 'font-bold tabular-nums disabled:bg-zinc-100 disabled:text-zinc-500')} placeholder="24" />
+          <Field label="Factor" hint={factorBloqueado ? 'No editable' : undefined}>
+            <input value={form.factor} onChange={set('factor')} disabled={factorBloqueado} inputMode="numeric" className={cx(inputClass(), 'font-bold tabular-nums disabled:bg-zinc-100 disabled:text-zinc-500')} placeholder="24" />
           </Field>
           <Field label="Cama">
             <input value={form.cama} onChange={set('cama')} inputMode="numeric" className={cx(inputClass(), 'font-bold tabular-nums')} placeholder="8" autoFocus={isEdit} />
@@ -387,7 +393,7 @@ function PaletizadoImportDialog({ open, onClose, onDone }) {
         <div className="mt-4 space-y-3">
           <p className="text-center text-xs text-zinc-500">
             <b className="text-zinc-800">{fmt(parsed.items.length)}</b> productos correctos
-            {parsed.sinPaletizado > 0 && <> · {fmt(parsed.sinPaletizado)} sin cama/altura (se omiten)</>}
+            {parsed.sinPaletizado > 0 && <> · de ellos {fmt(parsed.sinPaletizado)} con campos vacíos (se suben igual y se completan después)</>}
             {parsed.repetidos > 0 && <> · {fmt(parsed.repetidos)} repetidos (se toma el último)</>}
             {parsed.errores.length > 0 && <> · <span className="font-semibold text-red-600">{fmt(parsed.errores.length)} filas con error (no se importan)</span></>}
           </p>
@@ -445,8 +451,8 @@ function CambiosList({ cambios }) {
                 {c.tipo === 'nuevo' ? (
                   <span>
                     <span className="mr-1.5 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700">Nuevo</span>
-                    {c.despues.descripcion} · {c.despues.factor} × ({c.despues.cama} × {c.despues.altura}) ={' '}
-                    <b>{fmt(c.despues.factor * c.despues.cama * c.despues.altura)} und.</b>
+                    {c.despues.descripcion} · {fmt(c.despues.factor)} × ({fmt(c.despues.cama)} × {fmt(c.despues.altura)}) ={' '}
+                    <b>{c.despues.factor && c.despues.cama && c.despues.altura ? `${fmt(c.despues.factor * c.despues.cama * c.despues.altura)} und.` : 'por completar'}</b>
                   </span>
                 ) : (
                   <ul className="space-y-0.5">

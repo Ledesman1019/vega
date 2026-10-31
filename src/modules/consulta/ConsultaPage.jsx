@@ -132,7 +132,7 @@ export default function ConsultaPage() {
                     )}
                   </p>
                 </div>
-                {p.total != null ? (
+                {p.cama != null || p.altura != null ? (
                   <div className="grid grid-cols-3 divide-x divide-zinc-200 border-t border-zinc-200 bg-zinc-50 text-center">
                     <Dato label="Cama" value={p.cama} />
                     <Dato label="Altura" value={p.altura} />
@@ -159,7 +159,7 @@ function Dato({ label, value, strong }) {
     <div className="px-2 py-3">
       <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">{label}</p>
       <p className={cx('text-3xl font-extrabold tabular-nums sm:text-4xl', strong ? 'text-vega-red' : 'text-zinc-900')}>
-        {Number(value).toLocaleString('es-PE')}
+        {value == null ? <span className="text-zinc-300">—</span> : Number(value).toLocaleString('es-PE')}
       </p>
     </div>
   )

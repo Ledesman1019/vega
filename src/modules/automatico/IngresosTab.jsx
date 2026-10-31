@@ -411,7 +411,7 @@ function IngresoDialog({ open, onClose, onDone }) {
           <ResultadoTable detalle={preview.detalle} />
           {resumen.sinConfig > 0 && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-800">
-              Los productos <b>sin paletizado</b> no pueden generar rótulos. Agrégalos en la pestaña Paletizado y vuelve a calcular.
+              Los productos <b>sin paletizado</b> o con <b>factor, cama o altura vacíos</b> no pueden generar rótulos. Complétalos en la pestaña Paletizado y vuelve a calcular.
             </p>
           )}
           {(preview.invalidos > 0 || errores.length > 0) && (
@@ -431,6 +431,12 @@ function IngresoDialog({ open, onClose, onDone }) {
 }
 
 /* ---------- Resultado del cálculo por producto ---------- */
+// Producto sin rótulo: no tiene paletizado o le falta algún dato
+function sinPaletizado(d) {
+  const faltan = [d.factor == null && 'factor', d.cama == null && 'cama', d.altura == null && 'altura'].filter(Boolean)
+  return faltan.length === 3 ? 'Sin paletizado' : `Falta ${faltan.join(', ')}`
+}
+
 export function ResultadoTable({ detalle }) {
   if (!detalle?.length) return <p className="py-4 text-center text-sm text-zinc-500">Sin productos.</p>
   return (
@@ -475,7 +481,7 @@ export function ResultadoTable({ detalle }) {
                 <td className="px-3 py-2">
                   {d.estado === 'genera' && <Badge tone="green">{d.pallets === 1 ? '1 rótulo' : `${d.pallets} rótulos`} · {d.total} cajas</Badge>}
                   {d.estado === 'incompleto' && <Badge tone="amber">Faltan {fmt(d.faltan)} und.</Badge>}
-                  {d.estado === 'sin_config' && <Badge tone="red">Sin paletizado</Badge>}
+                  {d.estado === 'sin_config' && <Badge tone="red">{sinPaletizado(d)}</Badge>}
                 </td>
               </tr>
             </Fragment>

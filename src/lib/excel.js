@@ -272,8 +272,8 @@ function findHeader(matrix, detectors, required) {
 /**
  * Tabla 1 (paletizado): Código/Estilo, Descripción (opcional), Factor,
  * Cama, Altura y Total (opcional: si viene, se verifica que sea cama × altura).
- * Otras columnas (EAN, Clase…) se ignoran. Filas con cama y altura vacías
- * no son error: se cuentan en sinPaletizado y se omiten.
+ * Otras columnas (EAN, Clase…) se ignoran. Factor, cama o altura vacíos (o 0)
+ * no son error: el producto se sube igual y se cuenta en sinPaletizado.
  * Devuelve { items, errores: [{fila, estilo, motivo}], sinPaletizado, repetidos, total }.
  */
 export async function parsePaletizadoFile(file) {
@@ -308,33 +308,37 @@ export async function parsePaletizadoFile(file) {
     const fila = r.fila ?? i + 1
     const estilo = normalizeEstilo(get(r, 'estilo'))
     const descripcion = String(get(r, 'descripcion') ?? '').replace(/\s+/g, ' ').trim()
-    const factor = parseEntero(get(r, 'factor'))
-    const cama = parseEntero(get(r, 'cama'))
-    const altura = parseEntero(get(r, 'altura'))
-    const totalExcel = parseEntero(get(r, 'total'))
-
-    // Producto sin paletizado (cama y altura vacías): no es un error, se omite
-    if (cama === null && altura === null && isValidEstilo(estilo)) {
-      sinPaletizado++
-      continue
+    // Vacío o 0 = sin dato (se sube vacío y se completa después).
+    // Un texto que no es número (NaN) sigue siendo error.
+    const dato = (k) => {
+      const n = parseEntero(get(r, k))
+      return n === 0 ? null : n
     }
+    const factor = dato('factor')
+    const cama = dato('cama')
+    const altura = dato('altura')
+    const totalExcel = parseEntero(get(r, 'total'))
+    const rango = (n, max) => n === null || (n >= 1 && n <= max)
 
     let motivo = ''
     if (!isValidEstilo(estilo)) motivo = 'Estilo vacío o no válido'
-    else if (!(factor >= 1 && factor <= 100000)) motivo = 'Factor vacío o no es un entero entre 1 y 100 000'
-    else if (!(cama >= 1 && cama <= 1000)) motivo = 'Cama vacía o no es un entero entre 1 y 1 000'
-    else if (!(altura >= 1 && altura <= 1000)) motivo = 'Altura vacía o no es un entero entre 1 y 1 000'
-    else if (totalExcel != null && totalExcel !== cama * altura)
+    else if (!rango(factor, 100000)) motivo = 'Factor no es un entero entre 1 y 100 000'
+    else if (!rango(cama, 1000)) motivo = 'Cama no es un entero entre 1 y 1 000'
+    else if (!rango(altura, 1000)) motivo = 'Altura no es un entero entre 1 y 1 000'
+    else if (cama && altura && totalExcel && totalExcel !== cama * altura)
       motivo = `El total del Excel (${totalExcel}) no es cama × altura (${cama} × ${altura} = ${cama * altura})`
     if (motivo) {
       errores.push({ fila, estilo: estilo || String(get(r, 'estilo') ?? ''), motivo })
       continue
     }
-    map.set(estilo, { estilo, descripcion, factor, cama, altura })
+    if (map.has(estilo) && !map.get(estilo).completo) sinPaletizado--
+    const completo = !!(factor && cama && altura)
+    if (!completo) sinPaletizado++
+    map.set(estilo, { estilo, descripcion, factor, cama, altura, completo })
   }
 
-  const items = [...map.values()]
-  return { items, errores, sinPaletizado, repetidos: total - sinPaletizado - errores.length - items.length, total }
+  const items = [...map.values()].map(({ completo, ...it }) => it) // eslint-disable-line no-unused-vars
+  return { items, errores, sinPaletizado, repetidos: total - errores.length - items.length, total }
 }
 
 /**
